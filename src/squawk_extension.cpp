@@ -6,7 +6,7 @@
 #include "duckdb/execution/expression_executor_state.hpp"
 #define DUCKDB_EXTENSION_MAIN
 
-#include "quack_extension.hpp"
+#include "squawk_extension.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
@@ -16,40 +16,40 @@
 
 namespace duckdb {
 
-inline void QuackScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
+inline void squawkScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &name_vector = args.data[0];
 	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
-		return StringVector::AddString(result, "Quack " + name.GetString() + " 🐥");
+		return StringVector::AddString(result, "squawk " + name.GetString() + " 🐥");
 	});
 }
 
-inline void QuackgRPCVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
+inline void squawkgRPCVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &name_vector = args.data[0];
 	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
-		return StringVector::AddString(result, "Quack " + name.GetString() + ", my linked gRPC version is " +
+		return StringVector::AddString(result, "squawk " + name.GetString() + ", my linked gRPC version is " +
 		                                           grpc_version_string());
 	});
 }
 
 static void LoadInternal(ExtensionLoader &loader) {
 	// Register a scalar function
-	auto quack_scalar_function = ScalarFunction("quack", {LogicalType::VARCHAR}, LogicalType::VARCHAR, QuackScalarFun);
-	loader.RegisterFunction(quack_scalar_function);
+	auto squawk_scalar_function = ScalarFunction("squawk", {LogicalType::VARCHAR}, LogicalType::VARCHAR, squawkScalarFun);
+	loader.RegisterFunction(squawk_scalar_function);
 
 	// register another scala function
-	auto quack_grpc_version_scalar_function =
-	    ScalarFunction("quack_grpc_version", {LogicalType::VARCHAR}, LogicalType::VARCHAR, QuackgRPCVersionScalarFun);
-	loader.RegisterFunction(quack_grpc_version_scalar_function);
+	auto squawk_grpc_version_scalar_function =
+	    ScalarFunction("squawk_grpc_version", {LogicalType::VARCHAR}, LogicalType::VARCHAR, squawkgRPCVersionScalarFun);
+	loader.RegisterFunction(squawk_grpc_version_scalar_function);
 }
 
-void QuackExtension::Load(ExtensionLoader &loader) {
+void SquawkExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
 }
-std::string QuackExtension::Name() {
-	return "quack";
+std::string SquawkExtension::Name() {
+	return "squawk";
 }
 
-std::string QuackExtension::Version() const {
+std::string SquawkExtension::Version() const {
 #ifdef EXT_VERSION_QUACK
 	return EXT_VERSION_QUACK;
 #else
@@ -61,7 +61,7 @@ std::string QuackExtension::Version() const {
 
 extern "C" {
 
-DUCKDB_CPP_EXTENSION_ENTRY(quack, loader) {
+DUCKDB_CPP_EXTENSION_ENTRY(squawk, loader) {
 	duckdb::LoadInternal(loader);
 }
 }
