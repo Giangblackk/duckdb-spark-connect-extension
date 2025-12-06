@@ -1,23 +1,23 @@
-# name: test/sql/quack.test
-# description: test quack extension
+# name: test/sql/squawk.test
+# description: test squawk extension
 # group: [sql]
 
 # Before we load the extension, this will fail
 statement error
-SELECT quack('Sam');
+SELECT squawk('Sam');
 ----
-Catalog Error: Scalar Function with name quack does not exist!
+Catalog Error: Scalar Function with name squawk does not exist!
 
 # Require statement will ensure this test is run with this extension loaded
-require quack
+require squawk
 
 # Confirm the extension works
 query I
-SELECT quack('Sam');
+SELECT squawk('Sam');
 ----
-Quack Sam 🐥
+squawk Sam 🐥
 
 query I
-SELECT quack_grpc_version('Michael') ILIKE 'Quack Michael, my linked gRPC version is %';
+SELECT squawk_grpc_version('Michael') ILIKE 'squawk Michael, my linked gRPC version is %';
 ----
 true
