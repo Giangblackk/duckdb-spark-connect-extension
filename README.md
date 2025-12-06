@@ -2,6 +2,49 @@
 ## Introduction
 A project to build DuckDB extension to connect to Spark via Spark Connect API - so DuckDB can read/write data via Spark.
 
+## Design
+
+### Overview
+```mermaid
+flowchart TD
+
+spark_connect(Spark Connect Driver)
+duckdb_ext(DuckDB Squawk Extension with grpc and arrow)
+duckdb(DuckDB)
+
+spark_connect <-- Spark Connect API --> duckdb_ext <-- DuckDB Extension API --> duckdb
+```
+
+### Read path
+
+```mermaid
+flowchart TD
+
+storage(Data Storage)
+catalog(Data Catalog)
+spark_connect(Spark Connect Driver)
+duckdb_ext(DuckDB Extension with grpc and arrow)
+duckdb(DuckDB)
+
+catalog -- get tables metadata --> spark_connect
+storage -- read tables as DataFrame --> spark_connect -- send table data as Arrow batches via gRPC --> duckdb_ext -- read data as arrow table --> duckdb
+```
+
+### Write path
+
+```mermaid
+flowchart TD
+
+storage(Data Storage)
+catalog(Data Catalog)
+spark_connect(Spark Connect Driver)
+duckdb_ext(DuckDB Extension with grpc and arrow)
+duckdb(DuckDB)
+
+duckdb -- write data as arrow table --> duckdb_ext -- write data as arrow batch via gRPC --> spark_connect -- write data from DataFrame to tables --> storage
+spark_connect -- update table metadata --> catalog
+```
+
 ## Setup VSCode Development Environment
 1. Install VSCode extensions:
 - clangd: `llvm-vs-code-extensions.vscode-clangd`
