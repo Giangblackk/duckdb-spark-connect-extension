@@ -9,6 +9,10 @@ set(TARGET_NAME squawk)
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
+add_subdirectory(proto)
+
+# find Protobuf and gRPC libraries
+find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 
 project(${TARGET_NAME})
@@ -21,7 +25,7 @@ build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
 # Link OpenSSL in both the static library as the loadable extension
 target_link_libraries(${EXTENSION_NAME}
-  gRPC::gpr gRPC::grpc gRPC::grpc++ gRPC::grpc++_alts
+  gRPC::gpr gRPC::grpc gRPC::grpc++ gRPC::grpc++_alts protobuf::libprotobuf squawk_myproto
 )
 
 install(
