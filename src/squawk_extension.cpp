@@ -14,6 +14,8 @@
 #include <grpc/grpc.h>
 #include <grpcpp/grpcpp.h>
 
+#define SQUAWK_EXTENSION_VERSION "0.0.1"
+
 namespace duckdb {
 
 inline void squawkScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -50,11 +52,7 @@ std::string SquawkExtension::Name() {
 }
 
 std::string SquawkExtension::Version() const {
-#ifdef EXT_VERSION_QUACK
-	return EXT_VERSION_QUACK;
-#else
-	return "";
-#endif
+	return SQUAWK_EXTENSION_VERSION;
 }
 
 } // namespace duckdb
