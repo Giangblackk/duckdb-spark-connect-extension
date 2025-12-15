@@ -9,7 +9,7 @@ A project to build DuckDB extension to connect to Spark via Spark Connect API - 
 flowchart TD
 
 spark_connect(Spark Connect Driver)
-duckdb_ext(DuckDB Squawk Extension with grpc and arrow)
+duckdb_ext(DuckDB Spark Extension with gRPC and Arrow)
 duckdb(DuckDB)
 
 spark_connect <-- Spark Connect API --> duckdb_ext <-- DuckDB Extension API --> duckdb

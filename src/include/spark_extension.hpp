@@ -4,7 +4,7 @@
 
 namespace duckdb {
 
-class SquawkExtension : public Extension {
+class SparkExtension : public Extension {
 public:
 	void Load(ExtensionLoader &db) override;
 	std::string Name() override;

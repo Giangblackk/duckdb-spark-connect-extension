@@ -13,7 +13,7 @@ set(PROTO_FILES
     spark/connect/types.proto
 )
 
-set(PROTO_TARGET_NAME squawk_proto)
+set(PROTO_TARGET_NAME spark_proto)
 
 # configure to compile/generate protobuf c++ code and headers
 add_library(${PROTO_TARGET_NAME} STATIC ${PROTO_FILES})

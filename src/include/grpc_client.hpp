@@ -23,7 +23,7 @@ public:
 
 private:
 	std::shared_ptr<grpc::Channel> channel;
-	std::unique_ptr<squawk::SampleService::Stub> stub_;
+	std::unique_ptr<spark::SampleService::Stub> stub_;
 };
 
 } // namespace duckdb

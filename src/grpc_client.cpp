@@ -14,11 +14,11 @@ namespace duckdb {
 
 SamplegRPCClient::SamplegRPCClient()
     : channel(grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials())),
-      stub_(squawk::SampleService::NewStub(channel)) {
+      stub_(spark::SampleService::NewStub(channel)) {
 }
 std::string SamplegRPCClient::SendRequest(const std::string &message) {
-	squawk::SampleRequest request;
-	squawk::SampleResponse response;
+	spark::SampleRequest request;
+	spark::SampleResponse response;
 	request.set_request_sample_field(message);
 	grpc::ClientContext context;
 	grpc::Status status = stub_->SampleMethod(&context, request, &response);

@@ -1,0 +1,23 @@
+# name: test/sql/spark.test
+# description: test spark extension
+# group: [sql]
+
+# Before we load the extension, this will fail
+statement error
+SELECT spark('Sam');
+----
+Catalog Error: Scalar Function with name spark does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require spark
+
+# Confirm the extension works
+query I
+SELECT spark('Sam');
+----
+spark Sam 🐥
+
+query I
+SELECT spark_grpc_version('Michael') ILIKE 'spark Michael, my linked gRPC version is %';
+----
+true
