@@ -17,10 +17,16 @@ find_package(gRPC CONFIG REQUIRED)
 
 project(${TARGET_NAME})
 include_directories(src/include)
+include_directories(src/include/storage)
 
 set(EXTENSION_SOURCES 
   src/spark_extension.cpp
   src/grpc_client.cpp
+  src/spark_attach.cpp
+  src/spark_storage.cpp
+  src/spark_utils.cpp
+  src/storage/spark_catalog.cpp
+  src/storage/spark_transaction.cpp
 )
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
