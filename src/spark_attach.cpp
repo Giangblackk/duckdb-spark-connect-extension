@@ -15,7 +15,9 @@ namespace spark {
 static void AttachFunction(ClientContext &context, TableFunctionInput &data_p, DataChunk &output) {};
 
 static unique_ptr<FunctionData> AttachBind(ClientContext &context, TableFunctionBindInput &input,
-                                           vector<LogicalType> &return_types, vector<string> &names) {};
+                                           vector<LogicalType> &return_types, vector<string> &names) {
+	return nullptr;
+};
 
 SparkAttachFunction::SparkAttachFunction()
     : TableFunction("spark_attach", {LogicalType::VARCHAR}, AttachFunction, AttachBind) {
