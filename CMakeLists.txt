@@ -14,6 +14,7 @@ add_subdirectory(proto)
 # find Protobuf and gRPC libraries
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
+find_package(Arrow REQUIRED)
 
 project(${TARGET_NAME})
 include_directories(src/include)
@@ -22,6 +23,7 @@ include_directories(src/include/storage)
 set(EXTENSION_SOURCES 
   src/spark_extension.cpp
   src/grpc_client.cpp
+  src/spark_client.cpp
   src/spark_attach.cpp
   src/spark_storage.cpp
   src/spark_utils.cpp
@@ -34,7 +36,7 @@ build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
 # Link OpenSSL in both the static library as the loadable extension
 target_link_libraries(${EXTENSION_NAME}
-  gRPC::gpr gRPC::grpc gRPC::grpc++ gRPC::grpc++_alts protobuf::libprotobuf spark_proto
+  gRPC::gpr gRPC::grpc gRPC::grpc++ gRPC::grpc++_alts protobuf::libprotobuf "$<IF:$<BOOL:${ARROW_BUILD_STATIC}>,Arrow::arrow_static,Arrow::arrow_shared>" spark_proto
 )
 
 install(

@@ -3,9 +3,11 @@
 #include "duckdb/common/types/data_chunk.hpp"
 #include "duckdb/common/types/string_type.hpp"
 #include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/common/vector_operations/unary_executor.hpp"
 #include "duckdb/execution/expression_executor_state.hpp"
 #include "duckdb/main/config.hpp"
+#include "spark_client.hpp"
 #include "spark_storage.hpp"
 #define DUCKDB_EXTENSION_MAIN
 
@@ -46,6 +48,14 @@ inline void sparkgRPCSampleRequestScalarFun(DataChunk &args, ExpressionState &st
 	});
 }
 
+inline void sparkCatalogScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
+	BinaryExecutor::Execute<string_t, string_t, string_t>(
+	    args.data[0], args.data[1], result, args.size(), [&](string_t uri, string_t pattern) {
+		    spark::SparkGRPCClient sparkClient(uri.GetString());
+		    return StringVector::AddString(result, sparkClient.GetCatalogs(pattern.GetString()));
+	    });
+}
+
 static void LoadInternal(ExtensionLoader &loader) {
 	// Register a scalar function
 	auto spark_scalar_function = ScalarFunction("spark", {LogicalType::VARCHAR}, LogicalType::VARCHAR, sparkScalarFun);
@@ -59,6 +69,11 @@ static void LoadInternal(ExtensionLoader &loader) {
 	auto spark_grpc_sample_request_scalar_function = ScalarFunction(
 	    "spark_grpc_sample_request", {LogicalType::VARCHAR}, LogicalType::VARCHAR, sparkgRPCSampleRequestScalarFun);
 	loader.RegisterFunction(spark_grpc_sample_request_scalar_function);
+
+	auto spark_spark_catalog_scalar_function =
+	    ScalarFunction("spark_catalog_request", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                   sparkCatalogScalarFun);
+	loader.RegisterFunction(spark_spark_catalog_scalar_function);
 
 	spark::SparkAttachFunction spark_attach_function;
 	loader.RegisterFunction(spark_attach_function);
