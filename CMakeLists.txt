@@ -27,6 +27,7 @@ set(EXTENSION_SOURCES
   src/spark_attach.cpp
   src/spark_storage.cpp
   src/spark_utils.cpp
+  src/spark_list_catalogs.cpp
   src/storage/spark_catalog.cpp
   src/storage/spark_transaction.cpp
 )

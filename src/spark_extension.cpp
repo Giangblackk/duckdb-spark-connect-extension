@@ -8,6 +8,7 @@
 #include "duckdb/execution/expression_executor_state.hpp"
 #include "duckdb/main/config.hpp"
 #include "spark_client.hpp"
+#include "spark_list_catalogs.hpp"
 #include "spark_storage.hpp"
 #define DUCKDB_EXTENSION_MAIN
 
@@ -77,6 +78,9 @@ static void LoadInternal(ExtensionLoader &loader) {
 
 	spark::SparkAttachFunction spark_attach_function;
 	loader.RegisterFunction(spark_attach_function);
+
+	spark::SparkListCatalogsFunction spark_list_catalogs_function;
+	loader.RegisterFunction(spark_list_catalogs_function);
 
 	auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
 	config.storage_extensions["spark"] = make_uniq<spark::SparkStorageExtension>();
