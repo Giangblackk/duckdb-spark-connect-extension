@@ -7,11 +7,13 @@
 #include <arrow/ipc/message.h>
 #include <arrow/ipc/reader.h>
 #include <arrow/ipc/writer.h>
+#include <arrow/record_batch.h>
 #include <arrow/result.h>
 #include <arrow/io/memory.h>
 #include <arrow/buffer.h>
 #include <arrow/result.h>
 
+#include <arrow/type_fwd.h>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
 #include <grpcpp/create_channel.h>
@@ -21,6 +23,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace duckdb {
 namespace spark {
@@ -29,7 +32,7 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
     : channel(grpc::CreateChannel(uri, grpc::InsecureChannelCredentials())),
       stub_(::spark::connect::SparkConnectService::NewStub(channel)) {};
 
-std::string SparkGRPCClient::GetCatalogs(const std::string &pattern) {
+arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(const std::string &pattern) {
 	// setup ListCatalogs
 	::spark::connect::ListCatalogs lc;
 	lc.set_pattern(pattern);
@@ -69,7 +72,7 @@ std::string SparkGRPCClient::GetCatalogs(const std::string &pattern) {
 	grpc::ClientContext context;
 	auto stream = stub_->ExecutePlan(&context, request);
 	::spark::connect::ExecutePlanResponse msg;
-	std::string batch_str = "";
+	std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
 	// process through stream of messages
 	while (stream->Read(&msg)) {
 		auto response_type = msg.response_type_case();
@@ -97,20 +100,11 @@ std::string SparkGRPCClient::GetCatalogs(const std::string &pattern) {
 			std::shared_ptr<arrow::RecordBatch> batch;
 			while (reader->ReadNext(&batch).ok() && batch) {
 				// Process the deserialized RecordBatch
-				batch_str = batch->ToString();
+				batches.push_back(batch);
 			}
 		}
 	}
-	grpc::Status status = stream->Finish();
-	if (!status.ok()) {
-		return "ExecutePlan rpc failed.";
-	} else {
-		if (batch_str.size() == 0) {
-			return "<empty>";
-		} else {
-			return batch_str;
-		}
-	}
+	return batches;
 }
 
 } // namespace spark
