@@ -20,6 +20,7 @@ public:
 private:
 	std::shared_ptr<grpc::Channel> channel;
 	std::unique_ptr<::spark::connect::SparkConnectService::Stub> stub_;
+	std::string session_id;
 };
 
 } // namespace spark

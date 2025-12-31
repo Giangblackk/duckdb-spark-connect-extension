@@ -1,3 +1,4 @@
+#include "spark_utils.hpp"
 #include "spark_client.hpp"
 #include "spark/connect/base.pb.h"
 
@@ -30,7 +31,7 @@ namespace spark {
 
 SparkGRPCClient::SparkGRPCClient(const std::string &uri)
     : channel(grpc::CreateChannel(uri, grpc::InsecureChannelCredentials())),
-      stub_(::spark::connect::SparkConnectService::NewStub(channel)) {};
+      stub_(::spark::connect::SparkConnectService::NewStub(channel)), session_id(generate_uuid()) {};
 
 arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(const std::string &pattern) {
 	// setup ListCatalogs
@@ -57,15 +58,17 @@ arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(const std::string &pattern
 
 	// setup ExecutePlanRequest
 	::spark::connect::ExecutePlanRequest request;
-	request.set_session_id("00112233-4455-6677-8899-aabbccddeeff");
-	request.set_operation_id("00112233-4455-6677-8899-aabbccddeeff");
+	auto operation_id = generate_uuid();
+	request.set_session_id(session_id);
+	request.set_operation_id(operation_id);
 	request.set_client_type("duckdb");
 	request.mutable_plan()->MergeFrom(p);
 
 	// setup UserContext
 	::spark::connect::UserContext uc;
-	uc.set_user_id("00112233-4455-6677-8899-aabbccddeeff");
-	uc.set_user_name("giangblackk");
+	uid_t uid = getuid();
+	uc.set_user_id(generate_uuid());
+	uc.set_user_name("duckdb");
 	request.mutable_user_context()->MergeFrom(uc);
 
 	// execute plan
