@@ -133,15 +133,11 @@ static void SparkListCatalogsFunc(ClientContext &context, TableFunctionInput &da
 
 	output.SetCardinality(current_chunk->arrow_array.length);
 
-	D_ASSERT(current_chunk->arrow_array.length == 1);
-
 	ArrowScanLocalState fake_local_state(std::move(current_chunk), context);
 
-	ArrowTableFunction::ArrowToDuckDB(fake_local_state, arrow_table.GetColumns(), output, false);
+	ArrowTableFunction::ArrowToDuckDB(fake_local_state, arrow_table.GetColumns(), output, 0);
 
 	output.Verify();
-	// auto catalog_table = spark_client->GetCatalogs(bind_data.params.pattern);
-	// ARROW_THROW_NOT_OK(duckdb::ArrowScanFunctionData(*catalog_table, &stream));
 }
 
 static unique_ptr<GlobalTableFunctionState> SparkListCatalogsInitGlobalState(ClientContext &context,
@@ -157,6 +153,7 @@ static unique_ptr<GlobalTableFunctionState> SparkListCatalogsInitGlobalState(Cli
 	// schema should be setup in bind stage, to return column names and data types
 	return std::move(state);
 }
+
 static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, TableFunctionBindInput &input,
                                                       vector<LogicalType> &return_types, vector<string> &names) {
 	// Initialize the names and return types
