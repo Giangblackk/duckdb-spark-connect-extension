@@ -1,5 +1,7 @@
 #pragma once
 
+#include "duckdb/main/client_context.hpp"
+#include "duckdb/main/client_context_state.hpp"
 #include "spark/connect/base.grpc.pb.h"
 #include <arrow/record_batch.h>
 #include <arrow/table.h>
@@ -13,14 +15,25 @@ namespace duckdb {
 namespace spark {
 class SparkGRPCClient {
 public:
-	explicit SparkGRPCClient(const std::string &uri);
+	explicit SparkGRPCClient(const std::string &endpoint);
 	arrow::RecordBatchVector GetCatalogs(const std::string &pattern);
 	~SparkGRPCClient() {};
+	static std::shared_ptr<SparkGRPCClient> GetOrCreateSparkClient(ClientContext &context, const std::string &endpoint);
 
 private:
 	std::shared_ptr<grpc::Channel> channel;
 	std::unique_ptr<::spark::connect::SparkConnectService::Stub> stub_;
 	std::string session_id;
+};
+
+class SparkClientState : public ClientContextState {
+public:
+	explicit SparkClientState(std::shared_ptr<SparkGRPCClient> &client) : spark_client(std::move(client)) {
+	}
+	explicit SparkClientState(const std::string &endpoint) : spark_client(std::make_shared<SparkGRPCClient>(endpoint)) {
+	}
+
+	std::shared_ptr<SparkGRPCClient> spark_client;
 };
 
 } // namespace spark

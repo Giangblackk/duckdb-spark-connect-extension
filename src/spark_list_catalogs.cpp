@@ -34,10 +34,10 @@ struct ListCatalogParams {
 };
 
 struct ListCatalogsBindData : public TableFunctionData {
-	explicit ListCatalogsBindData(shared_ptr<SparkGRPCClient> &spark_client, ListCatalogParams &params)
+	explicit ListCatalogsBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListCatalogParams &params)
 	    : spark_client(spark_client), params(params) {
 	}
-	shared_ptr<SparkGRPCClient> spark_client;
+	std::shared_ptr<SparkGRPCClient> spark_client;
 	ListCatalogParams params;
 };
 
@@ -158,11 +158,14 @@ static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, Ta
                                                       vector<LogicalType> &return_types, vector<string> &names) {
 	// Initialize the names and return types
 	InitializeNamesAndReturnTypes(return_types, names);
-	auto uri = input.inputs[0].GetValue<string>();
+	auto endpoint = input.inputs[0].GetValue<string>();
 	auto pattern = input.inputs[1].GetValue<string>();
 	ListCatalogParams params;
 	params.pattern = pattern;
-	auto sparkClient = make_shared_ptr<SparkGRPCClient>(uri);
+
+	// Get existing Spark gRPC Client or create new for this endpoint
+	auto sparkClient = SparkGRPCClient::GetOrCreateSparkClient(context, endpoint);
+	// add to table function data
 	unique_ptr<ListCatalogsBindData> bind_data = make_uniq<ListCatalogsBindData>(sparkClient, params);
 	return std::move(bind_data);
 }
@@ -170,7 +173,7 @@ static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, Ta
 SparkListCatalogsFunction::SparkListCatalogsFunction()
     : TableFunction("spark_catalogs", {LogicalType::VARCHAR, LogicalType::VARCHAR}, SparkListCatalogsFunc,
                     SparkListCatalogsBind, SparkListCatalogsInitGlobalState) {
-	named_parameters["uri"] = LogicalType::VARCHAR;
+	named_parameters["endpoint"] = LogicalType::VARCHAR;
 	named_parameters["pattern"] = LogicalType::VARCHAR;
 };
 } // namespace spark

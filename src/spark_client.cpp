@@ -66,8 +66,6 @@ arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(const std::string &pattern
 
 	// setup UserContext
 	::spark::connect::UserContext uc;
-	uid_t uid = getuid();
-	uc.set_user_id(generate_uuid());
 	uc.set_user_name("duckdb");
 	request.mutable_user_context()->MergeFrom(uc);
 
@@ -108,6 +106,13 @@ arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(const std::string &pattern
 		}
 	}
 	return batches;
+}
+
+std::shared_ptr<SparkGRPCClient> SparkGRPCClient::GetOrCreateSparkClient(ClientContext &context,
+                                                                         const std::string &endpoint) {
+	const std::string state_key = "spark.client." + endpoint;
+	auto spark_client_state = context.registered_state->GetOrCreate<SparkClientState>(state_key, endpoint);
+	return spark_client_state->spark_client;
 }
 
 } // namespace spark
