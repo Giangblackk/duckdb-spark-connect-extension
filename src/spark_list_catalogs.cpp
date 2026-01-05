@@ -1,4 +1,5 @@
 #include "spark_list_catalogs.hpp"
+#include "spark_utils.hpp"
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
 #include "duckdb/common/arrow/arrow.hpp"
@@ -36,18 +37,15 @@ struct ListCatalogParams {
 struct ListCatalogsBindData : public TableFunctionData {
 	explicit ListCatalogsBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListCatalogParams &params)
 	    : spark_client(spark_client), params(params) {
+		// build Spark gRPC Plan
+		list_catalog_plan = spark_client->PlanGetCatalogs(params.pattern);
 	}
 	std::shared_ptr<SparkGRPCClient> spark_client;
+	::spark::connect::Plan list_catalog_plan;
 	ListCatalogParams params;
 };
 
 void InitializeNamesAndReturnTypes(vector<LogicalType> &return_types, vector<string> &names) {
-	struct ColumnInfo {
-		ColumnInfo(const string &name, const LogicalTypeId type) : name(name), type(type) {
-		}
-		string name;
-		LogicalTypeId type;
-	};
 	std::vector<ColumnInfo> columns = {
 	    {"name", LogicalTypeId::VARCHAR},
 	    {"description", LogicalTypeId::VARCHAR},
@@ -146,7 +144,7 @@ static unique_ptr<GlobalTableFunctionState> SparkListCatalogsInitGlobalState(Cli
 	auto &bind_data = input.bind_data->CastNoConst<ListCatalogsBindData>();
 	auto spark_client = bind_data.spark_client;
 
-	state->batches = spark_client->GetCatalogs(bind_data.params.pattern);
+	state->batches = spark_client->GetCatalogs(bind_data.list_catalog_plan);
 	// global state should keep the RecordBatchStreamReader or RecordBachVector
 	// local state if needed, should be used to handle when a record batch is bigger than maximum data chunk size to
 	// split into multiple data chunks if needed
@@ -156,8 +154,7 @@ static unique_ptr<GlobalTableFunctionState> SparkListCatalogsInitGlobalState(Cli
 
 static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, TableFunctionBindInput &input,
                                                       vector<LogicalType> &return_types, vector<string> &names) {
-	// Initialize the names and return types
-	InitializeNamesAndReturnTypes(return_types, names);
+	// Get parameters
 	auto endpoint = input.inputs[0].GetValue<string>();
 	auto pattern = input.inputs[1].GetValue<string>();
 	ListCatalogParams params;
@@ -165,8 +162,16 @@ static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, Ta
 
 	// Get existing Spark gRPC Client or create new for this endpoint
 	auto sparkClient = SparkGRPCClient::GetOrCreateSparkClient(context, endpoint);
-	// add to table function data
+
+	// Add Spark gRPC client to table function data
 	unique_ptr<ListCatalogsBindData> bind_data = make_uniq<ListCatalogsBindData>(sparkClient, params);
+
+	// Initialize the names and return types from analyze plan
+	auto columns = bind_data->spark_client->AnalyzePlanSchema(bind_data->list_catalog_plan);
+	for (const auto &column : columns) {
+		names.emplace_back(column.name);
+		return_types.emplace_back(column.type);
+	}
 	return std::move(bind_data);
 }
 

@@ -3,6 +3,8 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/client_context_state.hpp"
 #include "spark/connect/base.grpc.pb.h"
+#include "spark/connect/base.pb.h"
+#include "spark_utils.hpp"
 #include <arrow/record_batch.h>
 #include <arrow/table.h>
 #include <arrow/type_fwd.h>
@@ -16,7 +18,9 @@ namespace spark {
 class SparkGRPCClient {
 public:
 	explicit SparkGRPCClient(const std::string &endpoint);
-	arrow::RecordBatchVector GetCatalogs(const std::string &pattern);
+	::spark::connect::Plan PlanGetCatalogs(const std::string &pattern);
+	arrow::RecordBatchVector GetCatalogs(::spark::connect::Plan &plan);
+	std::vector<ColumnInfo> AnalyzePlanSchema(::spark::connect::Plan &plan);
 	~SparkGRPCClient() {};
 	static std::shared_ptr<SparkGRPCClient> GetOrCreateSparkClient(ClientContext &context, const std::string &endpoint);
 

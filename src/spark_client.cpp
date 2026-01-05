@@ -1,3 +1,7 @@
+#include "duckdb/common/exception.hpp"
+#include "duckdb/common/types.hpp"
+#include "spark/connect/relations.pb.h"
+#include "spark/connect/types.pb.h"
 #include "spark_utils.hpp"
 #include "spark_client.hpp"
 #include "spark/connect/base.pb.h"
@@ -33,7 +37,7 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
     : channel(grpc::CreateChannel(uri, grpc::InsecureChannelCredentials())),
       stub_(::spark::connect::SparkConnectService::NewStub(channel)), session_id(generate_uuid()) {};
 
-arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(const std::string &pattern) {
+::spark::connect::Plan SparkGRPCClient::PlanGetCatalogs(const std::string &pattern) {
 	// setup ListCatalogs
 	::spark::connect::ListCatalogs lc;
 	lc.set_pattern(pattern);
@@ -55,14 +59,17 @@ arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(const std::string &pattern
 	// setup Plan
 	::spark::connect::Plan p;
 	p.mutable_root()->MergeFrom(r);
+	return p;
+}
 
+arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(::spark::connect::Plan &plan) {
 	// setup ExecutePlanRequest
 	::spark::connect::ExecutePlanRequest request;
 	auto operation_id = generate_uuid();
 	request.set_session_id(session_id);
 	request.set_operation_id(operation_id);
 	request.set_client_type("duckdb");
-	request.mutable_plan()->MergeFrom(p);
+	request.mutable_plan()->MergeFrom(plan);
 
 	// setup UserContext
 	::spark::connect::UserContext uc;
@@ -106,6 +113,121 @@ arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(const std::string &pattern
 		}
 	}
 	return batches;
+}
+
+std::vector<ColumnInfo> SparkGRPCClient::AnalyzePlanSchema(::spark::connect::Plan &plan) {
+	::spark::connect::AnalyzePlanRequest analyze_plan_request;
+	auto operation_id = generate_uuid();
+	analyze_plan_request.set_session_id(session_id);
+	analyze_plan_request.set_client_type("duckdb");
+
+	::spark::connect::UserContext uc;
+	uc.set_user_name("duckdb");
+	analyze_plan_request.mutable_user_context()->MergeFrom(uc);
+
+	::spark::connect::AnalyzePlanRequest::Schema s;
+	s.mutable_plan()->MergeFrom(plan);
+
+	analyze_plan_request.mutable_schema()->MergeFrom(s);
+
+	// execute plan
+	grpc::ClientContext context;
+	::spark::connect::AnalyzePlanResponse resp;
+	auto status = stub_->AnalyzePlan(&context, analyze_plan_request, &resp);
+	if (!status.ok()) {
+		throw ConnectionException(status.error_message());
+	}
+	auto schema = resp.schema().schema();
+	auto schema_kind = schema.kind_case();
+	std::vector<ColumnInfo> columns;
+	if (schema_kind == ::spark::connect::DataType::KindCase::kStruct) {
+		auto data_struct = static_cast<::spark::connect::DataType::Struct>(schema.struct_());
+		for (const auto &f : data_struct.fields()) {
+			const auto &field_name = f.name();
+			auto field_kind = f.data_type().kind_case();
+			LogicalTypeId field_logical_type;
+			switch (field_kind) {
+			case ::spark::connect::DataType::kNull:
+				field_logical_type = LogicalTypeId::SQLNULL;
+				break;
+			case ::spark::connect::DataType::kBinary:
+				field_logical_type = LogicalTypeId::BLOB;
+				break;
+			case ::spark::connect::DataType::kBoolean:
+				field_logical_type = LogicalTypeId::BOOLEAN;
+				break;
+			case ::spark::connect::DataType::kByte:
+				field_logical_type = LogicalTypeId::TINYINT;
+				break;
+			case ::spark::connect::DataType::kShort:
+				field_logical_type = LogicalTypeId::SMALLINT;
+				break;
+			case ::spark::connect::DataType::kInteger:
+				field_logical_type = LogicalTypeId::INTEGER;
+				break;
+			case ::spark::connect::DataType::kLong:
+				field_logical_type = LogicalTypeId::BIGINT;
+				break;
+			case ::spark::connect::DataType::kFloat:
+				field_logical_type = LogicalTypeId::FLOAT;
+				break;
+			case ::spark::connect::DataType::kDouble:
+				field_logical_type = LogicalTypeId::DOUBLE;
+				break;
+			case ::spark::connect::DataType::kDecimal:
+				field_logical_type = LogicalTypeId::DECIMAL;
+				break;
+			case ::spark::connect::DataType::kString:
+				field_logical_type = LogicalTypeId::VARCHAR;
+				break;
+			case ::spark::connect::DataType::kChar:
+				field_logical_type = LogicalTypeId::VARCHAR;
+				break;
+			case ::spark::connect::DataType::kVarChar:
+				field_logical_type = LogicalTypeId::VARCHAR;
+				break;
+			case ::spark::connect::DataType::kDate:
+				field_logical_type = LogicalTypeId::DATE;
+				break;
+			case ::spark::connect::DataType::kTimestamp:
+				field_logical_type = LogicalTypeId::TIMESTAMP_TZ;
+				break;
+			case ::spark::connect::DataType::kTimestampNtz:
+				field_logical_type = LogicalTypeId::TIMESTAMP;
+				break;
+			case ::spark::connect::DataType::kCalendarInterval:
+				field_logical_type = LogicalTypeId::INTERVAL;
+				break;
+			case ::spark::connect::DataType::kYearMonthInterval:
+				field_logical_type = LogicalTypeId::INTERVAL;
+				break;
+			case ::spark::connect::DataType::kDayTimeInterval:
+				field_logical_type = LogicalTypeId::INTERVAL;
+				break;
+			case ::spark::connect::DataType::kArray:
+				field_logical_type = LogicalTypeId::ARRAY;
+				break;
+			case ::spark::connect::DataType::kStruct:
+				field_logical_type = LogicalTypeId::STRUCT;
+				break;
+			case ::spark::connect::DataType::kMap:
+				field_logical_type = LogicalTypeId::MAP;
+				break;
+			case ::spark::connect::DataType::kUdt:
+				// UserDefinedType - SKIP
+				break;
+			case ::spark::connect::DataType::kUnparsed:
+				// UnparsedDataType - SKIP
+				break;
+			case ::spark::connect::DataType::KIND_NOT_SET:
+				// SKIP
+				break;
+			}
+			auto column_info = ColumnInfo(field_name, field_logical_type);
+			columns.push_back(column_info);
+		}
+	}
+	return columns;
 }
 
 std::shared_ptr<SparkGRPCClient> SparkGRPCClient::GetOrCreateSparkClient(ClientContext &context,
