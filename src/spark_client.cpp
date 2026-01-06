@@ -1,5 +1,6 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/types.hpp"
+#include "spark/connect/catalog.pb.h"
 #include "spark/connect/relations.pb.h"
 #include "spark/connect/types.pb.h"
 #include "spark_utils.hpp"
@@ -52,7 +53,7 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 
 	// setup RelationCommon
 	::spark::connect::RelationCommon rc;
-	rc.set_plan_id(1);
+	rc.set_plan_id(next_plan_id++);
 	rc.set_source_info("");
 	r.mutable_common()->MergeFrom(rc);
 
@@ -62,7 +63,57 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 	return p;
 }
 
-arrow::RecordBatchVector SparkGRPCClient::GetCatalogs(::spark::connect::Plan &plan) {
+::spark::connect::Plan SparkGRPCClient::PlanGetDatabases(const std::string &pattern) {
+	// setup ListDatabases
+	::spark::connect::ListDatabases ld;
+	ld.set_pattern(pattern);
+
+	// setup Catalog
+	::spark::connect::Catalog c;
+	c.mutable_list_databases()->MergeFrom(ld);
+
+	// setup Relation
+	::spark::connect::Relation r;
+	r.mutable_catalog()->MergeFrom(c);
+
+	// setup RelationCommon
+	::spark::connect::RelationCommon rc;
+	rc.set_plan_id(next_plan_id++);
+	rc.set_source_info("");
+	r.mutable_common()->MergeFrom(rc);
+
+	// setup Plan
+	::spark::connect::Plan p;
+	p.mutable_root()->MergeFrom(r);
+	return p;
+}
+
+::spark::connect::Plan SparkGRPCClient::PlanSetCurrentCatalog(const std::string &catalog_name) {
+	// setup ListDatabases
+	::spark::connect::SetCurrentCatalog scc;
+	scc.set_catalog_name(catalog_name);
+
+	// setup Catalog
+	::spark::connect::Catalog c;
+	c.mutable_set_current_catalog()->MergeFrom(scc);
+
+	// setup Relation
+	::spark::connect::Relation r;
+	r.mutable_catalog()->MergeFrom(c);
+
+	// setup RelationCommon
+	::spark::connect::RelationCommon rc;
+	rc.set_plan_id(next_plan_id++);
+	rc.set_source_info("");
+	r.mutable_common()->MergeFrom(rc);
+
+	// setup Plan
+	::spark::connect::Plan p;
+	p.mutable_root()->MergeFrom(r);
+	return p;
+}
+
+arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Plan &plan) {
 	// setup ExecutePlanRequest
 	::spark::connect::ExecutePlanRequest request;
 	auto operation_id = generate_uuid();

@@ -8,6 +8,7 @@
 #include <arrow/record_batch.h>
 #include <arrow/table.h>
 #include <arrow/type_fwd.h>
+#include <cstdint>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
 #include <memory>
@@ -19,7 +20,10 @@ class SparkGRPCClient {
 public:
 	explicit SparkGRPCClient(const std::string &endpoint);
 	::spark::connect::Plan PlanGetCatalogs(const std::string &pattern);
-	arrow::RecordBatchVector GetCatalogs(::spark::connect::Plan &plan);
+	::spark::connect::Plan PlanGetDatabases(const std::string &pattern);
+	::spark::connect::Plan PlanSetCurrentCatalog(const std::string &catalog_name);
+	arrow::RecordBatchVector GetRecordBatches(::spark::connect::Plan &plan);
+	std::string GetStatus(::spark::connect::Plan &plan);
 	std::vector<ColumnInfo> AnalyzePlanSchema(::spark::connect::Plan &plan);
 	~SparkGRPCClient() {};
 	static std::shared_ptr<SparkGRPCClient> GetOrCreateSparkClient(ClientContext &context, const std::string &endpoint);
@@ -28,6 +32,7 @@ private:
 	std::shared_ptr<grpc::Channel> channel;
 	std::unique_ptr<::spark::connect::SparkConnectService::Stub> stub_;
 	std::string session_id;
+	int64_t next_plan_id = 1;
 };
 
 class SparkClientState : public ClientContextState {
