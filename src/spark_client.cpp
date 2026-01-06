@@ -1,13 +1,16 @@
+#include "spark_client.hpp"
+
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/types.hpp"
+#include "spark/connect/base.pb.h"
 #include "spark/connect/catalog.pb.h"
 #include "spark/connect/relations.pb.h"
 #include "spark/connect/types.pb.h"
 #include "spark_utils.hpp"
-#include "spark_client.hpp"
-#include "spark/connect/base.pb.h"
 
+#include <arrow/buffer.h>
 #include <arrow/io/interfaces.h>
+#include <arrow/io/memory.h>
 #include <arrow/io/type_fwd.h>
 #include <arrow/ipc/api.h>
 #include <arrow/ipc/message.h>
@@ -15,18 +18,13 @@
 #include <arrow/ipc/writer.h>
 #include <arrow/record_batch.h>
 #include <arrow/result.h>
-#include <arrow/io/memory.h>
-#include <arrow/buffer.h>
-#include <arrow/result.h>
-
 #include <arrow/type_fwd.h>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
-#include <grpcpp/create_channel.h>
 #include <grpcpp/client_context.h>
+#include <grpcpp/create_channel.h>
 #include <grpcpp/security/credentials.h>
 #include <grpcpp/support/status.h>
-
 #include <memory>
 #include <string>
 #include <vector>

@@ -3,6 +3,7 @@
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
 #include "duckdb/function/table/arrow/arrow_duck_schema.hpp"
+
 #include <arrow/record_batch.h>
 #include <string>
 

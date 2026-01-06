@@ -1,14 +1,15 @@
-#include <grpc/grpc.h>
-#include <grpcpp/channel.h>
-#include <grpcpp/create_channel.h>
-#include <grpcpp/client_context.h>
-#include <grpcpp/security/credentials.h>
-#include <grpcpp/support/status.h>
-#include <string>
+#include "include/grpc_client.hpp"
+
 #include "myproto/sample.grpc.pb.h"
 #include "myproto/sample.pb.h"
 
-#include "include/grpc_client.hpp"
+#include <grpc/grpc.h>
+#include <grpcpp/channel.h>
+#include <grpcpp/client_context.h>
+#include <grpcpp/create_channel.h>
+#include <grpcpp/security/credentials.h>
+#include <grpcpp/support/status.h>
+#include <string>
 
 namespace duckdb {
 

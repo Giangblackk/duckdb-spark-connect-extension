@@ -1,3 +1,5 @@
+#include "spark_attach.hpp"
+
 #include "duckdb.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
@@ -7,7 +9,6 @@
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/connection.hpp"
-#include "spark_attach.hpp"
 
 namespace duckdb {
 namespace spark {

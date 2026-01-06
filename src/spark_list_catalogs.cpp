@@ -1,8 +1,5 @@
 #include "spark_list_catalogs.hpp"
-#include "spark_utils.hpp"
-#include <arrow/api.h>
-#include <arrow/c/bridge.h>
-#include "duckdb/common/exception.hpp"
+
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
@@ -12,10 +9,8 @@
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "spark_client.hpp"
+
 #include <arrow/type_fwd.h>
-#include <mutex>
-#include <string>
-#include <utility>
 
 namespace duckdb {
 namespace spark {

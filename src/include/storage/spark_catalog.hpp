@@ -1,9 +1,8 @@
 #pragma once
 
 #include "duckdb/catalog/catalog.hpp"
-
-#include "storage/spark_options.hpp"
 #include "spark_utils.hpp"
+#include "storage/spark_options.hpp"
 
 namespace duckdb {
 namespace spark {

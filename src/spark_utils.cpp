@@ -1,10 +1,12 @@
-#include <arrow/api.h>
-#include <arrow/c/bridge.h>
-#include <string>
 #include "spark_utils.hpp"
+
 #include "duckdb/common/types/uuid.hpp"
 #include "duckdb/function/table/arrow.hpp"
 #include "duckdb/main/config.hpp"
+
+#include <arrow/api.h>
+#include <arrow/c/bridge.h>
+
 namespace duckdb {
 namespace spark {
 

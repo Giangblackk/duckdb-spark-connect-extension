@@ -12,13 +12,13 @@
 #include "spark_storage.hpp"
 #define DUCKDB_EXTENSION_MAIN
 
-#include "spark_extension.hpp"
-#include "grpc_client.hpp"
-#include "spark_attach.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/function/scalar_function.hpp"
-#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+#include "grpc_client.hpp"
+#include "spark_attach.hpp"
+#include "spark_extension.hpp"
 
+#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include <grpc/grpc.h>
 #include <grpcpp/grpcpp.h>
 

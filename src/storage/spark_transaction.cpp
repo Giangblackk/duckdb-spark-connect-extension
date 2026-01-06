@@ -1,7 +1,8 @@
+#include "storage/spark_transaction.hpp"
+
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/transaction/transaction.hpp"
 #include "storage/spark_catalog.hpp"
-#include "storage/spark_transaction.hpp"
 
 namespace duckdb {
 namespace spark {

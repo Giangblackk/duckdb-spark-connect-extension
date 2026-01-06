@@ -5,6 +5,7 @@
 #include "spark/connect/base.grpc.pb.h"
 #include "spark/connect/base.pb.h"
 #include "spark_utils.hpp"
+
 #include <arrow/record_batch.h>
 #include <arrow/table.h>
 #include <arrow/type_fwd.h>

@@ -1,7 +1,8 @@
+#include "storage/spark_catalog.hpp"
+
 #include "duckdb/common/exception/binder_exception.hpp"
 #include "duckdb/storage/database_size.hpp"
 #include "spark_utils.hpp"
-#include "storage/spark_catalog.hpp"
 
 namespace duckdb {
 namespace spark {

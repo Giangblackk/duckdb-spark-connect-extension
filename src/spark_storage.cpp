@@ -1,5 +1,7 @@
-#include "duckdb/common/helper.hpp"
+#include "spark_storage.hpp"
+
 #include "duckdb/catalog/catalog.hpp"
+#include "duckdb/common/helper.hpp"
 #include "duckdb/common/optional_ptr.hpp"
 #include "duckdb/common/unique_ptr.hpp"
 #include "duckdb/main/attached_database.hpp"
@@ -7,8 +9,6 @@
 #include "duckdb/parser/parsed_data/attach_info.hpp"
 #include "duckdb/storage/storage_extension.hpp"
 #include "duckdb/transaction/transaction_manager.hpp"
-
-#include "spark_storage.hpp"
 #include "storage/spark_catalog.hpp"
 #include "storage/spark_transaction.hpp"
 

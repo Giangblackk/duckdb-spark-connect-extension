@@ -1,4 +1,5 @@
 #include "spark_set_current_catalog.hpp"
+
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
@@ -8,8 +9,9 @@
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "spark/connect/base.pb.h"
-#include <arrow/type_fwd.h>
 #include "spark_client.hpp"
+
+#include <arrow/type_fwd.h>
 
 namespace duckdb {
 namespace spark {
