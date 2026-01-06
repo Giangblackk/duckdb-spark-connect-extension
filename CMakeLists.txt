@@ -20,25 +20,30 @@ project(${TARGET_NAME})
 include_directories(src/include)
 include_directories(src/include/storage)
 
-set(EXTENSION_SOURCES 
-  src/spark_extension.cpp
-  src/grpc_client.cpp
-  src/spark_client.cpp
-  src/spark_attach.cpp
-  src/spark_storage.cpp
-  src/spark_utils.cpp
-  src/spark_list_catalogs.cpp
-  src/storage/spark_catalog.cpp
-  src/storage/spark_transaction.cpp
-)
+set(EXTENSION_SOURCES
+    src/spark_extension.cpp
+    src/grpc_client.cpp
+    src/spark_client.cpp
+    src/spark_attach.cpp
+    src/spark_storage.cpp
+    src/spark_utils.cpp
+    src/spark_list_catalogs.cpp
+    src/storage/spark_catalog.cpp
+    src/storage/spark_transaction.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
 # Link OpenSSL in both the static library as the loadable extension
-target_link_libraries(${EXTENSION_NAME}
-  gRPC::gpr gRPC::grpc gRPC::grpc++ gRPC::grpc++_alts protobuf::libprotobuf "$<IF:$<BOOL:${ARROW_BUILD_STATIC}>,Arrow::arrow_static,Arrow::arrow_shared>" spark_proto
-)
+target_link_libraries(
+  ${EXTENSION_NAME}
+  gRPC::gpr
+  gRPC::grpc
+  gRPC::grpc++
+  gRPC::grpc++_alts
+  protobuf::libprotobuf
+  "$<IF:$<BOOL:${ARROW_BUILD_STATIC}>,Arrow::arrow_static,Arrow::arrow_shared>"
+  spark_proto)
 
 install(
   TARGETS ${EXTENSION_NAME}

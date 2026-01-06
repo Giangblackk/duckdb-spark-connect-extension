@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef GRPC_CLIENT_H
-#define GRPC_CLIENT_H
-
 #include <memory>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
@@ -27,5 +24,3 @@ private:
 };
 
 } // namespace duckdb
-
-#endif
