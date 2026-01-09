@@ -53,10 +53,9 @@ void WriteRecordBatchToDataChunk(ClientContext &context, const std::shared_ptr<a
 	}
 
 	// Export Record Batches to Arrow Array
-	ArrowSchema c_schema;
 	auto current_chunk = make_uniq<ArrowArrayWrapper>();
 
-	auto batch_export_status = arrow::ExportRecordBatch(*batch, &current_chunk->arrow_array, &c_schema);
+	auto batch_export_status = arrow::ExportRecordBatch(*batch, &current_chunk->arrow_array);
 	if (!batch_export_status.ok()) {
 		throw ExecutorException("Failed to Export Arrow RecordBatch");
 	}

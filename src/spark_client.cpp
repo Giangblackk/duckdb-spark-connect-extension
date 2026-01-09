@@ -140,7 +140,7 @@ arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Pla
 			auto data = msg.arrow_batch().data();
 
 			// convert to buffer
-			auto buffer = std::make_shared<arrow::Buffer>(reinterpret_cast<const uint8_t *>(data.data()), data.size());
+			auto buffer = arrow::Buffer::FromString(data);
 
 			// conver to BufferReader
 			auto input_stream = std::make_shared<arrow::io::BufferReader>(buffer);
