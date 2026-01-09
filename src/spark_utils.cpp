@@ -1,5 +1,7 @@
 #include "spark_utils.hpp"
 
+#include "duckdb/common/exception.hpp"
+#include "duckdb/common/types.hpp"
 #include "duckdb/common/types/uuid.hpp"
 #include "duckdb/function/table/arrow.hpp"
 #include "duckdb/main/config.hpp"
@@ -73,5 +75,80 @@ void WriteRecordBatchToDataChunk(ClientContext &context, const std::shared_ptr<a
 	output.Verify();
 }
 
+LogicalType ConvertSparkToDuckDBType(const ::spark::connect::DataType &dtype) {
+	const auto field_kind = dtype.kind_case();
+	switch (field_kind) {
+	case ::spark::connect::DataType::kNull:
+		return LogicalType::SQLNULL;
+	case ::spark::connect::DataType::kBinary:
+		return LogicalType::BLOB;
+	case ::spark::connect::DataType::kBoolean:
+		return LogicalType::BOOLEAN;
+	case ::spark::connect::DataType::kByte:
+		return LogicalType::TINYINT;
+	case ::spark::connect::DataType::kShort:
+		return LogicalType::SMALLINT;
+	case ::spark::connect::DataType::kInteger:
+		return LogicalType::INTEGER;
+	case ::spark::connect::DataType::kLong:
+		return LogicalType::BIGINT;
+	case ::spark::connect::DataType::kFloat:
+		return LogicalType::FLOAT;
+	case ::spark::connect::DataType::kDouble:
+		return LogicalType::DOUBLE;
+	case ::spark::connect::DataType::kDecimal: {
+		const auto &decimal_dtype = dtype.decimal();
+		auto scale = static_cast<uint8_t>(decimal_dtype.scale());
+		auto precision = static_cast<uint8_t>(decimal_dtype.precision());
+		return LogicalType::DECIMAL(precision, scale);
+	}
+	case ::spark::connect::DataType::kString:
+		return LogicalType::VARCHAR;
+	case ::spark::connect::DataType::kChar:
+		return LogicalType::VARCHAR;
+	case ::spark::connect::DataType::kVarChar:
+		return LogicalType::VARCHAR;
+	case ::spark::connect::DataType::kDate:
+		return LogicalType::DATE;
+	case ::spark::connect::DataType::kTimestamp:
+		return LogicalType::TIMESTAMP_TZ;
+	case ::spark::connect::DataType::kTimestampNtz:
+		return LogicalType::TIMESTAMP;
+	case ::spark::connect::DataType::kCalendarInterval:
+		return LogicalType::INTERVAL;
+	case ::spark::connect::DataType::kYearMonthInterval:
+		return LogicalType::INTERVAL;
+	case ::spark::connect::DataType::kDayTimeInterval:
+		return LogicalType::INTERVAL;
+	case ::spark::connect::DataType::kArray: {
+		const auto &array_dtype = dtype.array();
+		auto element_type = ConvertSparkToDuckDBType(array_dtype.element_type());
+		return LogicalType::LIST(element_type);
+	}
+	case ::spark::connect::DataType::kStruct: {
+		const auto &struct_dtype = dtype.struct_();
+		child_list_t<LogicalType> children;
+		for (const auto &field : struct_dtype.fields()) {
+			children.push_back({field.name(), ConvertSparkToDuckDBType(field.data_type())});
+		}
+		return LogicalType::STRUCT(children);
+	}
+	case ::spark::connect::DataType::kMap: {
+		const auto &map_dtype = dtype.map();
+		auto key_dtype = ConvertSparkToDuckDBType(map_dtype.key_type());
+		auto value_dtype = ConvertSparkToDuckDBType(map_dtype.value_type());
+		return LogicalType::MAP(key_dtype, value_dtype);
+	}
+	case ::spark::connect::DataType::kUdt:
+		throw InvalidTypeException("Spark UserDefinedType are currently not supported");
+		break;
+	case ::spark::connect::DataType::kUnparsed:
+		return LogicalType::VARCHAR;
+	case ::spark::connect::DataType::KIND_NOT_SET:
+		throw InvalidTypeException("Spark Data type are not set");
+	}
+	// return default data type
+	return LogicalType::SQLNULL;
+}
 } // namespace spark
 } // namespace duckdb

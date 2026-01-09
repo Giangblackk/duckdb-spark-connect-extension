@@ -17,7 +17,6 @@
 #include <arrow/ipc/reader.h>
 #include <arrow/ipc/writer.h>
 #include <arrow/record_batch.h>
-#include <arrow/result.h>
 #include <arrow/type_fwd.h>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
@@ -43,21 +42,21 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 
 	// setup Catalog
 	::spark::connect::Catalog c;
-	c.mutable_list_catalogs()->MergeFrom(lc);
+	c.mutable_list_catalogs()->CopyFrom(lc);
 
 	// setup Relation
 	::spark::connect::Relation r;
-	r.mutable_catalog()->MergeFrom(c);
+	r.mutable_catalog()->CopyFrom(c);
 
 	// setup RelationCommon
 	::spark::connect::RelationCommon rc;
 	rc.set_plan_id(next_plan_id++);
 	rc.set_source_info("");
-	r.mutable_common()->MergeFrom(rc);
+	r.mutable_common()->CopyFrom(rc);
 
 	// setup Plan
 	::spark::connect::Plan p;
-	p.mutable_root()->MergeFrom(r);
+	p.mutable_root()->CopyFrom(r);
 	return p;
 }
 
@@ -68,21 +67,47 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 
 	// setup Catalog
 	::spark::connect::Catalog c;
-	c.mutable_list_databases()->MergeFrom(ld);
+	c.mutable_list_databases()->CopyFrom(ld);
 
 	// setup Relation
 	::spark::connect::Relation r;
-	r.mutable_catalog()->MergeFrom(c);
+	r.mutable_catalog()->CopyFrom(c);
 
 	// setup RelationCommon
 	::spark::connect::RelationCommon rc;
 	rc.set_plan_id(next_plan_id++);
 	rc.set_source_info("");
-	r.mutable_common()->MergeFrom(rc);
+	r.mutable_common()->CopyFrom(rc);
 
 	// setup Plan
 	::spark::connect::Plan p;
-	p.mutable_root()->MergeFrom(r);
+	p.mutable_root()->CopyFrom(r);
+	return p;
+}
+
+::spark::connect::Plan SparkGRPCClient::PlanGetTables(const std::string &pattern, const std::string &db_name) {
+	// setup ListDatabases
+	::spark::connect::ListTables lt;
+	lt.set_pattern(pattern);
+	lt.set_db_name(db_name);
+
+	// setup Catalog
+	::spark::connect::Catalog c;
+	c.mutable_list_tables()->CopyFrom(lt);
+
+	// setup Relation
+	::spark::connect::Relation r;
+	r.mutable_catalog()->CopyFrom(c);
+
+	// setup RelationCommon
+	::spark::connect::RelationCommon rc;
+	rc.set_plan_id(next_plan_id++);
+	rc.set_source_info("");
+	r.mutable_common()->CopyFrom(rc);
+
+	// setup Plan
+	::spark::connect::Plan p;
+	p.mutable_root()->CopyFrom(r);
 	return p;
 }
 
@@ -93,21 +118,21 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 
 	// setup Catalog
 	::spark::connect::Catalog c;
-	c.mutable_set_current_catalog()->MergeFrom(scc);
+	c.mutable_set_current_catalog()->CopyFrom(scc);
 
 	// setup Relation
 	::spark::connect::Relation r;
-	r.mutable_catalog()->MergeFrom(c);
+	r.mutable_catalog()->CopyFrom(c);
 
 	// setup RelationCommon
 	::spark::connect::RelationCommon rc;
 	rc.set_plan_id(next_plan_id++);
 	rc.set_source_info("");
-	r.mutable_common()->MergeFrom(rc);
+	r.mutable_common()->CopyFrom(rc);
 
 	// setup Plan
 	::spark::connect::Plan p;
-	p.mutable_root()->MergeFrom(r);
+	p.mutable_root()->CopyFrom(r);
 	return p;
 }
 
@@ -118,12 +143,12 @@ arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Pla
 	request.set_session_id(session_id);
 	request.set_operation_id(operation_id);
 	request.set_client_type("duckdb");
-	request.mutable_plan()->MergeFrom(plan);
+	request.mutable_plan()->CopyFrom(plan);
 
 	// setup UserContext
 	::spark::connect::UserContext uc;
 	uc.set_user_name("duckdb");
-	request.mutable_user_context()->MergeFrom(uc);
+	request.mutable_user_context()->CopyFrom(uc);
 
 	// execute plan
 	grpc::ClientContext context;
@@ -151,7 +176,7 @@ arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Pla
 			if (!_result.ok()) {
 				continue;
 			}
-			auto reader = std::move(_result).ValueUnsafe();
+			auto reader = _result.ValueOrDie();
 
 			// read record batches from reader
 			std::shared_ptr<arrow::RecordBatch> batch;
@@ -172,12 +197,12 @@ std::vector<ColumnInfo> SparkGRPCClient::AnalyzePlanSchema(::spark::connect::Pla
 
 	::spark::connect::UserContext uc;
 	uc.set_user_name("duckdb");
-	analyze_plan_request.mutable_user_context()->MergeFrom(uc);
+	analyze_plan_request.mutable_user_context()->CopyFrom(uc);
 
 	::spark::connect::AnalyzePlanRequest::Schema s;
-	s.mutable_plan()->MergeFrom(plan);
+	s.mutable_plan()->CopyFrom(plan);
 
-	analyze_plan_request.mutable_schema()->MergeFrom(s);
+	analyze_plan_request.mutable_schema()->CopyFrom(s);
 
 	// execute plan
 	grpc::ClientContext context;
@@ -194,86 +219,7 @@ std::vector<ColumnInfo> SparkGRPCClient::AnalyzePlanSchema(::spark::connect::Pla
 		for (const auto &f : data_struct.fields()) {
 			const auto &field_name = f.name();
 			auto field_kind = f.data_type().kind_case();
-			LogicalTypeId field_logical_type;
-			switch (field_kind) {
-			case ::spark::connect::DataType::kNull:
-				field_logical_type = LogicalTypeId::SQLNULL;
-				break;
-			case ::spark::connect::DataType::kBinary:
-				field_logical_type = LogicalTypeId::BLOB;
-				break;
-			case ::spark::connect::DataType::kBoolean:
-				field_logical_type = LogicalTypeId::BOOLEAN;
-				break;
-			case ::spark::connect::DataType::kByte:
-				field_logical_type = LogicalTypeId::TINYINT;
-				break;
-			case ::spark::connect::DataType::kShort:
-				field_logical_type = LogicalTypeId::SMALLINT;
-				break;
-			case ::spark::connect::DataType::kInteger:
-				field_logical_type = LogicalTypeId::INTEGER;
-				break;
-			case ::spark::connect::DataType::kLong:
-				field_logical_type = LogicalTypeId::BIGINT;
-				break;
-			case ::spark::connect::DataType::kFloat:
-				field_logical_type = LogicalTypeId::FLOAT;
-				break;
-			case ::spark::connect::DataType::kDouble:
-				field_logical_type = LogicalTypeId::DOUBLE;
-				break;
-			case ::spark::connect::DataType::kDecimal:
-				field_logical_type = LogicalTypeId::DECIMAL;
-				break;
-			case ::spark::connect::DataType::kString:
-				field_logical_type = LogicalTypeId::VARCHAR;
-				break;
-			case ::spark::connect::DataType::kChar:
-				field_logical_type = LogicalTypeId::VARCHAR;
-				break;
-			case ::spark::connect::DataType::kVarChar:
-				field_logical_type = LogicalTypeId::VARCHAR;
-				break;
-			case ::spark::connect::DataType::kDate:
-				field_logical_type = LogicalTypeId::DATE;
-				break;
-			case ::spark::connect::DataType::kTimestamp:
-				field_logical_type = LogicalTypeId::TIMESTAMP_TZ;
-				break;
-			case ::spark::connect::DataType::kTimestampNtz:
-				field_logical_type = LogicalTypeId::TIMESTAMP;
-				break;
-			case ::spark::connect::DataType::kCalendarInterval:
-				field_logical_type = LogicalTypeId::INTERVAL;
-				break;
-			case ::spark::connect::DataType::kYearMonthInterval:
-				field_logical_type = LogicalTypeId::INTERVAL;
-				break;
-			case ::spark::connect::DataType::kDayTimeInterval:
-				field_logical_type = LogicalTypeId::INTERVAL;
-				break;
-			case ::spark::connect::DataType::kArray:
-				field_logical_type = LogicalTypeId::ARRAY;
-				break;
-			case ::spark::connect::DataType::kStruct:
-				field_logical_type = LogicalTypeId::STRUCT;
-				break;
-			case ::spark::connect::DataType::kMap:
-				field_logical_type = LogicalTypeId::MAP;
-				break;
-			case ::spark::connect::DataType::kUdt:
-				// UserDefinedType - SKIP
-				break;
-			case ::spark::connect::DataType::kUnparsed:
-				// UnparsedDataType - SKIP
-				break;
-			case ::spark::connect::DataType::KIND_NOT_SET:
-				// SKIP
-				break;
-			}
-			auto column_info = ColumnInfo(field_name, field_logical_type);
-			columns.push_back(column_info);
+			columns.emplace_back(field_name, ConvertSparkToDuckDBType(f.data_type()));
 		}
 	}
 	return columns;

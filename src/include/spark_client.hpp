@@ -22,6 +22,7 @@ public:
 	explicit SparkGRPCClient(const std::string &endpoint);
 	::spark::connect::Plan PlanGetCatalogs(const std::string &pattern);
 	::spark::connect::Plan PlanGetDatabases(const std::string &pattern);
+	::spark::connect::Plan PlanGetTables(const std::string &pattern, const std::string &db_name);
 	::spark::connect::Plan PlanSetCurrentCatalog(const std::string &catalog_name);
 	arrow::RecordBatchVector GetRecordBatches(::spark::connect::Plan &plan);
 	std::string GetStatus(::spark::connect::Plan &plan);

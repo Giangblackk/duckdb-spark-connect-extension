@@ -3,6 +3,7 @@
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
 #include "duckdb/function/table/arrow/arrow_duck_schema.hpp"
+#include "spark/connect/types.pb.h"
 
 #include <arrow/record_batch.h>
 #include <string>
@@ -16,10 +17,10 @@ public:
 };
 
 struct ColumnInfo {
-	ColumnInfo(const std::string &name, const LogicalTypeId type) : name(name), type(type) {
+	ColumnInfo(const std::string &name, const LogicalType &type) : name(name), type(type) {
 	}
 	std::string name;
-	LogicalTypeId type;
+	LogicalType type;
 };
 
 std::string generate_uuid();
@@ -43,5 +44,6 @@ private:
 void WriteRecordBatchToDataChunk(ClientContext &context, const std::shared_ptr<arrow::RecordBatch> &batch,
                                  DataChunk &output);
 
+LogicalType ConvertSparkToDuckDBType(const ::spark::connect::DataType &dtype);
 } // namespace spark
 } // namespace duckdb
