@@ -35,7 +35,7 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
     : channel(grpc::CreateChannel(uri, grpc::InsecureChannelCredentials())),
       stub_(::spark::connect::SparkConnectService::NewStub(channel)), session_id(generate_uuid()) {};
 
-::spark::connect::Plan SparkGRPCClient::PlanGetCatalogs(const std::string &pattern) {
+::spark::connect::Plan SparkGRPCClient::PlanListCatalogs(const std::string &pattern) {
 	// setup ListCatalogs
 	::spark::connect::ListCatalogs lc;
 	lc.set_pattern(pattern);
@@ -60,7 +60,7 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 	return p;
 }
 
-::spark::connect::Plan SparkGRPCClient::PlanGetDatabases(const std::string &pattern) {
+::spark::connect::Plan SparkGRPCClient::PlanListDatabases(const std::string &pattern) {
 	// setup ListDatabases
 	::spark::connect::ListDatabases ld;
 	ld.set_pattern(pattern);
@@ -85,7 +85,7 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 	return p;
 }
 
-::spark::connect::Plan SparkGRPCClient::PlanGetTables(const std::string &pattern, const std::string &db_name) {
+::spark::connect::Plan SparkGRPCClient::PlanListTables(const std::string &pattern, const std::string &db_name) {
 	// setup ListDatabases
 	::spark::connect::ListTables lt;
 	lt.set_pattern(pattern);

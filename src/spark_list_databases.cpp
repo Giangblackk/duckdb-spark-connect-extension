@@ -30,14 +30,14 @@ struct ListDatabasesBindData : public TableFunctionData {
 	explicit ListDatabasesBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListDatabasesParams &params)
 	    : spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
-		list_databases_plan = spark_client->PlanGetDatabases(params.pattern);
+		list_databases_plan = spark_client->PlanListDatabases(params.pattern);
 	}
 	std::shared_ptr<SparkGRPCClient> spark_client;
 	::spark::connect::Plan list_databases_plan;
 	ListDatabasesParams params;
 };
 
-static void SparkListDatabaseFunc(ClientContext &context, TableFunctionInput &data_p, DataChunk &output) {
+static void SparkListDatabasesFunc(ClientContext &context, TableFunctionInput &data_p, DataChunk &output) {
 	auto &bind_data = data_p.bind_data->CastNoConst<ListDatabasesBindData>();
 	auto &global_state = data_p.global_state->Cast<ListDatabasesGlobalFunctionState>();
 	auto spark_client = bind_data.spark_client;
@@ -98,7 +98,7 @@ static unique_ptr<FunctionData> SparkListDatabasesBind(ClientContext &context, T
 }
 
 SparkListDatabasesFunction::SparkListDatabasesFunction()
-    : TableFunction("spark_databases", {LogicalType::VARCHAR, LogicalType::VARCHAR}, SparkListDatabaseFunc,
+    : TableFunction("spark_list_databases", {LogicalType::VARCHAR, LogicalType::VARCHAR}, SparkListDatabasesFunc,
                     SparkListDatabasesBind, SparkListDatabasesGlobalState) {
 	named_parameters["endpoint"] = LogicalType::VARCHAR;
 	named_parameters["pattern"] = LogicalType::VARCHAR;

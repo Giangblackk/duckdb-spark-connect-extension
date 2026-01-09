@@ -30,7 +30,7 @@ struct ListTablesBindData : public TableFunctionData {
 	explicit ListTablesBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListTablesParams &params)
 	    : spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
-		list_tables_plan = spark_client->PlanGetTables(params.pattern, params.db_name);
+		list_tables_plan = spark_client->PlanListTables(params.pattern, params.db_name);
 	}
 	std::shared_ptr<SparkGRPCClient> spark_client;
 	::spark::connect::Plan list_tables_plan;

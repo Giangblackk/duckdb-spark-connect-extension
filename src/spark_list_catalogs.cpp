@@ -24,20 +24,20 @@ struct ListCatalogsGlobalFunctionState : public GlobalTableFunctionState {
 };
 
 // Parameters for Table Function
-struct ListCatalogParams {
+struct ListCatalogsParams {
 	std::string pattern;
 };
 
 // Table Function Data
 struct ListCatalogsBindData : public TableFunctionData {
-	explicit ListCatalogsBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListCatalogParams &params)
+	explicit ListCatalogsBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListCatalogsParams &params)
 	    : spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
-		list_catalog_plan = spark_client->PlanGetCatalogs(params.pattern);
+		list_catalogs_plan = spark_client->PlanListCatalogs(params.pattern);
 	}
 	std::shared_ptr<SparkGRPCClient> spark_client;
-	::spark::connect::Plan list_catalog_plan;
-	ListCatalogParams params;
+	::spark::connect::Plan list_catalogs_plan;
+	ListCatalogsParams params;
 };
 
 static void SparkListCatalogsFunc(ClientContext &context, TableFunctionInput &data_p, DataChunk &output) {
@@ -69,7 +69,7 @@ static unique_ptr<GlobalTableFunctionState> SparkListCatalogsInitGlobalState(Cli
 	auto &bind_data = input.bind_data->CastNoConst<ListCatalogsBindData>();
 	auto spark_client = bind_data.spark_client;
 
-	state->batches = spark_client->GetRecordBatches(bind_data.list_catalog_plan);
+	state->batches = spark_client->GetRecordBatches(bind_data.list_catalogs_plan);
 	// global state should keep the RecordBatchStreamReader or RecordBachVector
 	// local state if needed, should be used to handle when a record batch is bigger than maximum data chunk size to
 	// split into multiple data chunks if needed
@@ -82,7 +82,7 @@ static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, Ta
 	// Get parameters
 	auto endpoint = input.inputs[0].GetValue<string>();
 	auto pattern = input.inputs[1].GetValue<string>();
-	ListCatalogParams params;
+	ListCatalogsParams params;
 	params.pattern = pattern;
 
 	// Get existing Spark gRPC Client or create new for this endpoint
@@ -92,7 +92,7 @@ static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, Ta
 	unique_ptr<ListCatalogsBindData> bind_data = make_uniq<ListCatalogsBindData>(sparkClient, params);
 
 	// Initialize the names and return types from analyze plan
-	auto columns = bind_data->spark_client->AnalyzePlanSchema(bind_data->list_catalog_plan);
+	auto columns = bind_data->spark_client->AnalyzePlanSchema(bind_data->list_catalogs_plan);
 	for (const auto &column : columns) {
 		names.emplace_back(column.name);
 		return_types.emplace_back(column.type);
@@ -101,7 +101,7 @@ static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, Ta
 }
 
 SparkListCatalogsFunction::SparkListCatalogsFunction()
-    : TableFunction("spark_catalogs", {LogicalType::VARCHAR, LogicalType::VARCHAR}, SparkListCatalogsFunc,
+    : TableFunction("spark_list_catalogs", {LogicalType::VARCHAR, LogicalType::VARCHAR}, SparkListCatalogsFunc,
                     SparkListCatalogsBind, SparkListCatalogsInitGlobalState) {
 	named_parameters["endpoint"] = LogicalType::VARCHAR;
 	named_parameters["pattern"] = LogicalType::VARCHAR;
