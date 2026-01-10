@@ -19,6 +19,7 @@ jobs:
       duckdb_version: v1.4.2
       ci_tools_version: v1.4.2
       extension_name: spark
+      extra_toolchains: ;parser_tools;
 
   code-quality-check:
     name: Code Quality Check
@@ -27,4 +28,4 @@ jobs:
       duckdb_version: v1.4.2
       ci_tools_version: v1.4.2
       extension_name: spark
-      format_checks: 'format;tidy'
+      format_checks: "format;tidy"
