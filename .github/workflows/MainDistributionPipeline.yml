@@ -20,7 +20,7 @@ jobs:
       ci_tools_version: v1.4.2
       extension_name: spark
       extra_toolchains: ;parser_tools;
-      vcpkg_commit: ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0
+      vcpkg_commit: dd3097e305afa53f7b4312371f62058d2e665320
 
   code-quality-check:
     name: Code Quality Check
