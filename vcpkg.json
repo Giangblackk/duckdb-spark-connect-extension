@@ -15,6 +15,10 @@
     {
       "name": "arrow",
       "default-features": false
+    },
+    {
+      "name": "thrift",
+      "version>=": "0.22.0"
     }
   ]
 }
