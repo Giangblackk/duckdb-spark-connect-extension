@@ -450,17 +450,17 @@ jobs:
         run: |
           docker run --name build-container --env-file=docker_env.txt -v `pwd`:/duckdb_build_dir -v `pwd`/ccache_dir:/ccache_dir duckdb/${{ matrix.duckdb_arch }} make ${{ inputs.build_type }}
         continue-on-error: true
-      - name: Copy logs from container
-        run: |
-          docker cp build-container:/vcpkg/buildtrees/ ./build-logs/ || true
-        continue-on-error: true
-      - name: Upload logs on failure
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs-${{ matrix.os }}-${{ matrix.arch }}
-          path: |
-            ./build-logs/**/*.log
-          if-no-files-found: warn
+      # - name: Copy logs from container
+      #   run: |
+      #     docker cp build-container:/vcpkg/buildtrees/ ./build-logs/ || true
+      #   continue-on-error: true
+      # - name: Upload logs on failure
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: build-logs-${{ matrix.os }}-${{ matrix.arch }}
+      #     path: |
+      #       ./build-logs/**/*.log
+      #     if-no-files-found: warn
       - name: Save Ccache
         if: ${{ inputs.save_cache }}
         uses: actions/cache/save@v4
