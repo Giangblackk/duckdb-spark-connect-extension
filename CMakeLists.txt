@@ -29,6 +29,7 @@ set(EXTENSION_SOURCES
     src/spark_utils.cpp
     src/spark_list_catalogs.cpp
     src/spark_list_databases.cpp
+    src/spark_list_tables.cpp
     src/spark_set_current_catalog.cpp
     src/storage/spark_catalog.cpp
     src/storage/spark_transaction.cpp)
