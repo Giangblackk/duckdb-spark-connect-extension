@@ -78,8 +78,8 @@ static unique_ptr<GlobalTableFunctionState> SparkSetCurrentCatalogGlobalState(Cl
 static unique_ptr<FunctionData> SparkSetCurrentCatalogBind(ClientContext &context, TableFunctionBindInput &input,
                                                            vector<LogicalType> &return_types, vector<string> &names) {
 	// Get parameters
-	auto endpoint = input.inputs[0].GetValue<string>();
-	auto catalog_name = input.inputs[1].GetValue<string>();
+	auto endpoint = input.named_parameters["endpoint"].GetValue<string>();
+	auto catalog_name = input.named_parameters["catalog_name"].GetValue<string>();
 	SetCurrentCatalogParams params;
 	params.catalog_name = catalog_name;
 
@@ -99,8 +99,8 @@ static unique_ptr<FunctionData> SparkSetCurrentCatalogBind(ClientContext &contex
 }
 
 SparkSetCurrentCatalogFunction::SparkSetCurrentCatalogFunction()
-    : TableFunction("spark_set_catalog", {LogicalType::VARCHAR, LogicalType::VARCHAR}, SparkSetCurrentCatalogFunc,
-                    SparkSetCurrentCatalogBind, SparkSetCurrentCatalogGlobalState) {
+    : TableFunction("spark_set_catalog", {}, SparkSetCurrentCatalogFunc, SparkSetCurrentCatalogBind,
+                    SparkSetCurrentCatalogGlobalState) {
 	named_parameters["endpoint"] = LogicalType::VARCHAR;
 	named_parameters["catalog_name"] = LogicalType::VARCHAR;
 }

@@ -78,9 +78,9 @@ static unique_ptr<GlobalTableFunctionState> SparkListTablesGlobalState(ClientCon
 static unique_ptr<FunctionData> SparkListTablesBind(ClientContext &context, TableFunctionBindInput &input,
                                                     vector<LogicalType> &return_types, vector<string> &names) {
 	// // Get parameters
-	auto endpoint = input.inputs[0].GetValue<std::string>();
-	auto pattern = input.inputs[1].GetValue<std::string>();
-	auto db_name = input.inputs[2].GetValue<std::string>();
+	auto endpoint = input.named_parameters["endpoint"].GetValue<std::string>();
+	auto pattern = input.named_parameters["pattern"].GetValue<std::string>();
+	auto db_name = input.named_parameters["db_name"].GetValue<std::string>();
 	ListTablesParams params;
 	params.pattern = pattern;
 	params.db_name = db_name;
@@ -101,8 +101,7 @@ static unique_ptr<FunctionData> SparkListTablesBind(ClientContext &context, Tabl
 }
 
 SparkListTablesFunction::SparkListTablesFunction()
-    : TableFunction("spark_list_tables", {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR},
-                    SparkListTablesFunc, SparkListTablesBind, SparkListTablesGlobalState) {
+    : TableFunction("spark_list_tables", {}, SparkListTablesFunc, SparkListTablesBind, SparkListTablesGlobalState) {
 	named_parameters["endpoint"] = LogicalType::VARCHAR;
 	named_parameters["pattern"] = LogicalType::VARCHAR;
 	named_parameters["db_name"] = LogicalType::VARCHAR;

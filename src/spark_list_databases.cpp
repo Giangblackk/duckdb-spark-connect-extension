@@ -77,8 +77,8 @@ static unique_ptr<GlobalTableFunctionState> SparkListDatabasesGlobalState(Client
 static unique_ptr<FunctionData> SparkListDatabasesBind(ClientContext &context, TableFunctionBindInput &input,
                                                        vector<LogicalType> &return_types, vector<string> &names) {
 	// Get parameters
-	auto endpoint = input.inputs[0].GetValue<string>();
-	auto pattern = input.inputs[1].GetValue<string>();
+	auto endpoint = input.named_parameters["endpoint"].GetValue<string>();
+	auto pattern = input.named_parameters["pattern"].GetValue<string>();
 	ListDatabasesParams params;
 	params.pattern = pattern;
 
@@ -98,8 +98,8 @@ static unique_ptr<FunctionData> SparkListDatabasesBind(ClientContext &context, T
 }
 
 SparkListDatabasesFunction::SparkListDatabasesFunction()
-    : TableFunction("spark_list_databases", {LogicalType::VARCHAR, LogicalType::VARCHAR}, SparkListDatabasesFunc,
-                    SparkListDatabasesBind, SparkListDatabasesGlobalState) {
+    : TableFunction("spark_list_databases", {}, SparkListDatabasesFunc, SparkListDatabasesBind,
+                    SparkListDatabasesGlobalState) {
 	named_parameters["endpoint"] = LogicalType::VARCHAR;
 	named_parameters["pattern"] = LogicalType::VARCHAR;
 }

@@ -6,7 +6,6 @@
 #include "spark/connect/catalog.pb.h"
 #include "spark/connect/relations.pb.h"
 #include "spark/connect/types.pb.h"
-#include "spark_utils.hpp"
 
 #include <arrow/buffer.h>
 #include <arrow/io/interfaces.h>
