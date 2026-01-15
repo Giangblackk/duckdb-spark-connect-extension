@@ -1,0 +1,104 @@
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/types.hpp"
+#include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/string_type.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/vector_operations/unary_executor.hpp"
+#include "duckdb/execution/expression_executor_state.hpp"
+#include "duckdb/main/config.hpp"
+#include "spark_list_catalogs.hpp"
+#include "spark_list_databases.hpp"
+#include "spark_list_tables.hpp"
+#include "spark_set_current_catalog.hpp"
+#include "spark_storage.hpp"
+#define DUCKDB_EXTENSION_MAIN
+
+#include "duckdb/common/exception.hpp"
+#include "duckdb/function/scalar_function.hpp"
+#include "grpc_client.hpp"
+#include "spark_attach.hpp"
+#include "spark_extension.hpp"
+
+#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+#include <grpc/grpc.h>
+#include <grpcpp/grpcpp.h>
+
+#define SPARK_EXTENSION_VERSION "0.0.1"
+
+namespace duckdb {
+
+inline void sparkScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &name_vector = args.data[0];
+	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
+		return StringVector::AddString(result, "spark " + name.GetString() + " 🐥");
+	});
+}
+
+inline void sparkgRPCVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &name_vector = args.data[0];
+	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
+		return StringVector::AddString(result, "spark " + name.GetString() + ", my linked gRPC version is " +
+		                                           grpc_version_string());
+	});
+}
+
+inline void sparkgRPCSampleRequestScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &name_vector = args.data[0];
+	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
+		SamplegRPCClient gRPCClient;
+		return StringVector::AddString(result, gRPCClient.SendRequest(name.GetString()));
+	});
+}
+
+static void LoadInternal(ExtensionLoader &loader) {
+	// Register a scalar function
+	auto spark_scalar_function = ScalarFunction("spark", {LogicalType::VARCHAR}, LogicalType::VARCHAR, sparkScalarFun);
+	loader.RegisterFunction(spark_scalar_function);
+
+	// register another scala function
+	auto spark_grpc_version_scalar_function =
+	    ScalarFunction("spark_grpc_version", {LogicalType::VARCHAR}, LogicalType::VARCHAR, sparkgRPCVersionScalarFun);
+	loader.RegisterFunction(spark_grpc_version_scalar_function);
+
+	auto spark_grpc_sample_request_scalar_function = ScalarFunction(
+	    "spark_grpc_sample_request", {LogicalType::VARCHAR}, LogicalType::VARCHAR, sparkgRPCSampleRequestScalarFun);
+	loader.RegisterFunction(spark_grpc_sample_request_scalar_function);
+
+	spark::SparkAttachFunction spark_attach_function;
+	loader.RegisterFunction(spark_attach_function);
+
+	spark::SparkListCatalogsFunction spark_list_catalogs_function;
+	loader.RegisterFunction(spark_list_catalogs_function);
+
+	spark::SparkListDatabasesFunction spark_list_databases_function;
+	loader.RegisterFunction(spark_list_databases_function);
+
+	spark::SparkSetCurrentCatalogFunction spark_set_catalog_function;
+	loader.RegisterFunction(spark_set_catalog_function);
+
+	spark::SparkListTablesFunction spark_list_tables_function;
+	loader.RegisterFunction(spark_list_tables_function);
+
+	auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
+	config.storage_extensions["spark"] = make_uniq<spark::SparkStorageExtension>();
+}
+
+void SparkExtension::Load(ExtensionLoader &loader) {
+	LoadInternal(loader);
+}
+std::string SparkExtension::Name() {
+	return "spark";
+}
+
+std::string SparkExtension::Version() const {
+	return SPARK_EXTENSION_VERSION;
+}
+
+} // namespace duckdb
+
+extern "C" {
+
+DUCKDB_CPP_EXTENSION_ENTRY(spark, loader) {
+	duckdb::LoadInternal(loader);
+}
+}

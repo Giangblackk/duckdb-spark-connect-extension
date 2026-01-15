@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: Install Ninja
         shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build flex bison
 
       - uses: actions/checkout@v4
         with:
@@ -83,7 +83,7 @@ jobs:
           submodules: 'true'
 
       - name: Install Ninja
-        run: brew install ninja
+        run: brew install ninja flex bison
 
       - uses: actions/setup-python@v2
         with:

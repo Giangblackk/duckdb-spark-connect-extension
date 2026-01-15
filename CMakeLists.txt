@@ -4,25 +4,49 @@ cmake_minimum_required(VERSION 3.5)
 set(CMAKE_CXX_STANDARD 17)
 
 # Set extension name here
-set(TARGET_NAME squawk)
+set(TARGET_NAME spark)
 
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
+add_subdirectory(proto)
+
+# find Protobuf and gRPC libraries
+find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
+find_package(Arrow REQUIRED)
 
 project(${TARGET_NAME})
 include_directories(src/include)
+include_directories(src/include/storage)
 
-set(EXTENSION_SOURCES src/squawk_extension.cpp)
+set(EXTENSION_SOURCES
+    src/spark_extension.cpp
+    src/grpc_client.cpp
+    src/spark_client.cpp
+    src/spark_attach.cpp
+    src/spark_storage.cpp
+    src/spark_utils.cpp
+    src/spark_list_catalogs.cpp
+    src/spark_list_databases.cpp
+    src/spark_list_tables.cpp
+    src/spark_set_current_catalog.cpp
+    src/storage/spark_catalog.cpp
+    src/storage/spark_transaction.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
 # Link OpenSSL in both the static library as the loadable extension
-target_link_libraries(${EXTENSION_NAME}
-  gRPC::gpr gRPC::grpc gRPC::grpc++ gRPC::grpc++_alts
-)
+target_link_libraries(
+  ${EXTENSION_NAME}
+  gRPC::gpr
+  gRPC::grpc
+  gRPC::grpc++
+  gRPC::grpc++_alts
+  protobuf::libprotobuf
+  "$<IF:$<BOOL:${ARROW_BUILD_STATIC}>,Arrow::arrow_static,Arrow::arrow_shared>"
+  spark_proto)
 
 install(
   TARGETS ${EXTENSION_NAME}

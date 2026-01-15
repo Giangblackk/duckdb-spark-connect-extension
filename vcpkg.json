@@ -4,12 +4,21 @@
       "./extension-ci-tools/vcpkg_ports"
     ]
   },
+  "builtin-baseline": "dd3097e305afa53f7b4312371f62058d2e665320",
   "dependencies": [
     {
       "name": "grpc",
       "features": [
         "codegen"
       ]
+    },
+    {
+      "name": "arrow",
+      "default-features": false
+    },
+    {
+      "name": "thrift",
+      "version>=": "0.22.0"
     }
   ]
 }

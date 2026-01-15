@@ -1,0 +1,15 @@
+# name: test/sql/storage/attach_default.test
+# description: test spark extension
+# group: [storage]
+
+# Before we load the extension, this will fail
+statement error
+SELECT spark('Sam');
+----
+Catalog Error: Scalar Function with name spark does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require spark
+
+statement ok
+ATTACH 'host=127.0.0.1 port=15002' AS sc (TYPE spark);
