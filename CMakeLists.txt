@@ -22,9 +22,7 @@ include_directories(src/include/storage)
 
 set(EXTENSION_SOURCES
     src/spark_extension.cpp
-    src/grpc_client.cpp
     src/spark_client.cpp
-    src/spark_attach.cpp
     src/spark_storage.cpp
     src/spark_utils.cpp
     src/spark_list_catalogs.cpp
