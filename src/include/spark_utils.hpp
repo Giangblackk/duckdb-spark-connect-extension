@@ -12,8 +12,11 @@ namespace duckdb {
 namespace spark {
 struct SparkConfig {
 public:
-	SparkConfig() = default;
-	static SparkConfig FromDSN(const std::string &connection_string);
+	SparkConfig(const std::string &host, int port);
+	static SparkConfig FromURI(const std::string &connection_string);
+	std::string GetEndpoint();
+	std::string host;
+	int port;
 };
 
 struct ColumnInfo {

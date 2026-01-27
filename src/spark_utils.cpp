@@ -1,6 +1,7 @@
 #include "spark_utils.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/exception/parser_exception.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/uuid.hpp"
 #include "duckdb/function/table/arrow.hpp"
@@ -8,13 +9,42 @@
 
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
+#include <string>
 
 namespace duckdb {
 namespace spark {
+SparkConfig::SparkConfig(const std::string &host, int port) : host(host), port(port) {
+}
 
-SparkConfig SparkConfig::FromDSN(const std::string &connection_string) {
-	SparkConfig spark_config = SparkConfig();
-	return spark_config;
+SparkConfig SparkConfig::FromURI(const std::string &url) {
+
+	// split base path and query
+	size_t query_pos = url.find('?');
+	std::string base = (query_pos == std::string::npos) ? url : url.substr(0, query_pos);
+	std::string query = (query_pos == std::string::npos) ? "" : url.substr(query_pos + 1);
+
+	// Extract scheme and authority
+	size_t scheme_end = base.find("://");
+	if (scheme_end == std::string::npos) {
+		throw ParserException("Invalid URL: missing scheme");
+	}
+	// Validate scheme
+	std::string scheme = base.substr(0, scheme_end);
+	if (scheme != "sc") {
+		throw ParserException("Invalid Scheme: `%s`. Database path must start with `sc://`", scheme);
+	}
+	// Extract host and port
+	std::string path = base.substr(scheme_end + 3);
+	size_t endpoint_end = path.find(':');
+	std::string host = (endpoint_end == std::string::npos) ? path : path.substr(0, endpoint_end);
+	std::string port_str = (endpoint_end == std::string::npos) ? "15002" : path.substr(endpoint_end + 1);
+	auto port = std::stoi(port_str);
+
+	return SparkConfig(host, port);
+}
+
+std::string SparkConfig::GetEndpoint() {
+	return host + ":" + std::to_string(port);
 }
 
 std::string generate_uuid() {

@@ -1,29 +1,29 @@
 #pragma once
 
 #include "duckdb/catalog/catalog.hpp"
+#include "spark_client.hpp"
 #include "spark_utils.hpp"
 #include "storage/spark_options.hpp"
+#include "storage/spark_schema_set.hpp"
 
 namespace duckdb {
 namespace spark {
 
+#define SPARK_DEFAULT_CATALOG "spark_catalog"
 class SparkCatalog : public Catalog {
 public:
-	explicit SparkCatalog(AttachedDatabase &db_p, const SparkConfig &config, SparkOptions options_p);
-	explicit SparkCatalog(AttachedDatabase &db_p, const string &connection_str, SparkOptions options_p);
+	explicit SparkCatalog(AttachedDatabase &db_p, const string &connection_str, SparkAttachOptions options_p);
 	~SparkCatalog() override = default;
 
-	SparkConfig config;
-	SparkOptions options;
-
-public:
 	string GetCatalogType() override {
 		return "spark";
 	}
 	void Initialize(bool load_builtin) override;
+	//! Creates a schema in the catalog.
 	optional_ptr<CatalogEntry> CreateSchema(CatalogTransaction transaction, CreateSchemaInfo &info) override;
 	optional_ptr<SchemaCatalogEntry> LookupSchema(CatalogTransaction transaction, const EntryLookupInfo &schema_lookup,
 	                                              OnEntryNotFound if_not_found) override;
+	//! Scans all the schemas in the system one-by-one, invoking the callback for each entry
 	void ScanSchemas(ClientContext &context, std::function<void(SchemaCatalogEntry &)> callback) override;
 	PhysicalOperator &PlanCreateTableAs(ClientContext &context, PhysicalPlanGenerator &planner, LogicalCreateTable &op,
 	                                    PhysicalOperator &plan) override;
@@ -39,11 +39,20 @@ public:
 		return false;
 	};
 	string GetDBPath() override {
-		return "default";
+		return db_path;
 	};
-	void DropSchema(ClientContext &context, DropInfo &info) override {
-		throw NotImplementedException("Spark does not support Drop Schema");
-	};
+
+public:
+	SparkConfig config;
+	SparkAttachOptions options;
+	shared_ptr<SparkGRPCClient> spark_client;
+
+private:
+	void DropSchema(ClientContext &context, DropInfo &info) override;
+
+private:
+	SparkSchemaSet schemas;
+	std::string db_path;
 };
 
 } // namespace spark

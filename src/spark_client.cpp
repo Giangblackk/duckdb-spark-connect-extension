@@ -16,6 +16,7 @@
 #include <arrow/ipc/reader.h>
 #include <arrow/ipc/writer.h>
 #include <arrow/record_batch.h>
+#include <arrow/status.h>
 #include <arrow/type_fwd.h>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
@@ -32,7 +33,16 @@ namespace spark {
 
 SparkGRPCClient::SparkGRPCClient(const std::string &uri)
     : channel(grpc::CreateChannel(uri, grpc::InsecureChannelCredentials())),
-      stub_(::spark::connect::SparkConnectService::NewStub(channel)), session_id(generate_uuid()) {};
+      stub_(::spark::connect::SparkConnectService::NewStub(channel)), session_id(generate_uuid()) {
+	// Check gRPC connectivity state
+	// try to connect
+	auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(DEFAULT_TIMEOUT_SEC);
+
+	if (!channel->WaitForConnected(deadline)) {
+		throw ConnectionException("Failed to connect to endpoint `%s` within timeout `%i` seconds", uri,
+		                          DEFAULT_TIMEOUT_SEC);
+	}
+};
 
 ::spark::connect::Plan SparkGRPCClient::PlanListCatalogs(const std::string &pattern) {
 	// setup ListCatalogs
@@ -222,6 +232,31 @@ std::vector<ColumnInfo> SparkGRPCClient::AnalyzePlanSchema(::spark::connect::Pla
 		}
 	}
 	return columns;
+}
+
+grpc::Status SparkGRPCClient::GetStatus(::spark::connect::Plan &plan) {
+	::spark::connect::ExecutePlanRequest request;
+	auto operation_id = generate_uuid();
+	request.set_session_id(session_id);
+	request.set_operation_id(operation_id);
+	request.set_client_type("duckdb");
+	request.mutable_plan()->CopyFrom(plan);
+
+	// setup UserContext
+	::spark::connect::UserContext uc;
+	uc.set_user_name("duckdb");
+	request.mutable_user_context()->CopyFrom(uc);
+
+	// execute plan
+	grpc::ClientContext context;
+	auto stream = stub_->ExecutePlan(&context, request);
+	::spark::connect::ExecutePlanResponse msg;
+	// iterate over response messages
+	while (stream->Read(&msg)) {
+	}
+	// get status
+	grpc::Status status = stream->Finish();
+	return status;
 }
 
 std::shared_ptr<SparkGRPCClient> SparkGRPCClient::GetOrCreateSparkClient(ClientContext &context,
