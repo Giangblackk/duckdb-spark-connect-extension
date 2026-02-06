@@ -30,12 +30,12 @@ struct ListCatalogsParams {
 
 // Table Function Data
 struct ListCatalogsBindData : public TableFunctionData {
-	explicit ListCatalogsBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListCatalogsParams &params)
+	explicit ListCatalogsBindData(shared_ptr<SparkGRPCClient> &spark_client, ListCatalogsParams &params)
 	    : spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
 		list_catalogs_plan = spark_client->PlanListCatalogs(params.pattern);
 	}
-	std::shared_ptr<SparkGRPCClient> spark_client;
+	shared_ptr<SparkGRPCClient> spark_client;
 	::spark::connect::Plan list_catalogs_plan;
 	ListCatalogsParams params;
 };

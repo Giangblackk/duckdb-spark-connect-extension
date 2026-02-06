@@ -1,6 +1,9 @@
 #pragma once
 
 #include "duckdb/catalog/catalog_entry/schema_catalog_entry.hpp"
+#include "duckdb/common/enums/catalog_type.hpp"
+#include "spark_catalog_set.hpp"
+#include "spark_table_set.hpp"
 namespace duckdb {
 namespace spark {
 class SparkSchemaEntry final : public SchemaCatalogEntry {
@@ -27,6 +30,10 @@ public:
 
 	optional_ptr<CatalogEntry> LookupEntry(CatalogTransaction transaction, const EntryLookupInfo &lookup_info) override;
 	void Alter(CatalogTransaction transaction, AlterInfo &info) override;
+
+private:
+	SparkCatalogSet &GetCatalogSet(CatalogType type);
+	SparkTableSet tables;
 };
 } // namespace spark
 } // namespace duckdb

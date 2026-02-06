@@ -145,6 +145,29 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 	return p;
 }
 
+::spark::connect::Plan SparkGRPCClient::PlanReadTable(const std::string &table_name) {
+	// setup Table
+	::spark::connect::Read_NamedTable nt;
+	nt.set_unparsed_identifier(table_name);
+
+	::spark::connect::Read rd;
+	rd.mutable_named_table()->CopyFrom(nt);
+
+	::spark::connect::Relation rel;
+	rel.mutable_read()->CopyFrom(rd);
+
+	// setup RelationCommon
+	::spark::connect::RelationCommon rc;
+	rc.set_plan_id(next_plan_id++);
+	rc.set_source_info("");
+	rel.mutable_common()->CopyFrom(rc);
+
+	// setup Plan
+	::spark::connect::Plan p;
+	p.mutable_root()->CopyFrom(rel);
+	return p;
+}
+
 arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Plan &plan) {
 	// setup ExecutePlanRequest
 	::spark::connect::ExecutePlanRequest request;
@@ -259,8 +282,8 @@ grpc::Status SparkGRPCClient::GetStatus(::spark::connect::Plan &plan) {
 	return status;
 }
 
-std::shared_ptr<SparkGRPCClient> SparkGRPCClient::GetOrCreateSparkClient(ClientContext &context,
-                                                                         const std::string &endpoint) {
+shared_ptr<SparkGRPCClient> SparkGRPCClient::GetOrCreateSparkClient(ClientContext &context,
+                                                                    const std::string &endpoint) {
 	const std::string state_key = "spark.client." + endpoint;
 	auto spark_client_state = context.registered_state->GetOrCreate<SparkClientState>(state_key, endpoint);
 	return spark_client_state->spark_client;

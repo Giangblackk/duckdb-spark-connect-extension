@@ -27,12 +27,12 @@ struct ListTablesParams {
 };
 
 struct ListTablesBindData : public TableFunctionData {
-	explicit ListTablesBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListTablesParams &params)
+	explicit ListTablesBindData(shared_ptr<SparkGRPCClient> &spark_client, ListTablesParams &params)
 	    : spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
 		list_tables_plan = spark_client->PlanListTables(params.pattern, params.db_name);
 	}
-	std::shared_ptr<SparkGRPCClient> spark_client;
+	shared_ptr<SparkGRPCClient> spark_client;
 	::spark::connect::Plan list_tables_plan;
 	ListTablesParams params;
 };
@@ -50,7 +50,7 @@ static void SparkListTablesFunc(ClientContext &context, TableFunctionInput &data
 	}
 
 	// if not, reset output and convert batch to data chunk
-	// output.Reset();
+	output.Reset();
 
 	// pop back to get next batch
 	auto next_batch = global_state.batches.back();

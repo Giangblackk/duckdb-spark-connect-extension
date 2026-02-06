@@ -28,12 +28,12 @@ struct SetCurrentCatalogParams {
 };
 
 struct SetCurrentCatalogBindData : public TableFunctionData {
-	explicit SetCurrentCatalogBindData(std::shared_ptr<SparkGRPCClient> &spark_client, SetCurrentCatalogParams &params)
+	explicit SetCurrentCatalogBindData(shared_ptr<SparkGRPCClient> &spark_client, SetCurrentCatalogParams &params)
 	    : spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
 		set_current_catalog_plan = spark_client->PlanSetCurrentCatalog(params.catalog_name);
 	}
-	std::shared_ptr<SparkGRPCClient> spark_client;
+	shared_ptr<SparkGRPCClient> spark_client;
 	::spark::connect::Plan set_current_catalog_plan;
 	SetCurrentCatalogParams params;
 };

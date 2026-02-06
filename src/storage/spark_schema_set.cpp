@@ -3,17 +3,14 @@
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/types.hpp"
-#include "duckdb/common/types/null_value.hpp"
 #include "duckdb/common/types/value.hpp"
 #include "duckdb/parser/parsed_data/create_schema_info.hpp"
-#include "duckdb/parser/parsed_data/parse_info.hpp"
 #include "spark_catalog.hpp"
 #include "spark_catalog_set.hpp"
 #include "spark_schema_entry.hpp"
 
 #include <arrow/array/array_binary.h>
 #include <arrow/type.h>
-#include <iostream>
 #include <utility>
 #include <vector>
 
@@ -64,7 +61,7 @@ void SparkSchemaSet::LoadEntries(DatabaseInstance &db) {
 	auto plan = spark_client->PlanListDatabases("*");
 	auto data = spark_client->GetRecordBatches(plan);
 	auto schemas = ParseRecordBatches(data);
-	for (auto schema_info : schemas) {
+	for (auto &schema_info : schemas) {
 		auto schema_entry = make_uniq<SparkSchemaEntry>(catalog, schema_info);
 		CreateEntry(std::move(schema_entry));
 	}

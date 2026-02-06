@@ -17,6 +17,7 @@ public:
 
 	optional_ptr<CatalogEntry> CreateSchema(ClientContext &context, CreateSchemaInfo &info);
 
+protected:
 	void LoadEntries(DatabaseInstance &db) override;
 
 private: // methods

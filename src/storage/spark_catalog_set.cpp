@@ -2,6 +2,7 @@
 
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/main/client_context.hpp"
+#include "spark_schema_entry.hpp"
 
 #include <mutex>
 namespace duckdb {
@@ -38,6 +39,16 @@ optional_ptr<CatalogEntry> SparkCatalogSet::GetEntry(ClientContext &context, con
 }
 
 void SparkCatalogSet::DropEntry(ClientContext &context, DropInfo &info) {
+}
+
+SparkInSchemaSet::SparkInSchemaSet(SparkSchemaEntry &schema) : SparkCatalogSet(schema.ParentCatalog()), schema(schema) {
+}
+
+optional_ptr<CatalogEntry> SparkInSchemaSet::CreateEntry(unique_ptr<CatalogEntry> entry) {
+	if (!entry->internal) {
+		entry->internal = schema.internal;
+	}
+	return SparkCatalogSet::CreateEntry(std::move(entry));
 }
 
 } // namespace spark

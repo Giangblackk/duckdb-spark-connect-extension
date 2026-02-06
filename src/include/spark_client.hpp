@@ -30,12 +30,13 @@ public:
 	::spark::connect::Plan PlanListDatabases(const std::string &pattern);
 	::spark::connect::Plan PlanListTables(const std::string &pattern, const std::string &db_name);
 	::spark::connect::Plan PlanSetCurrentCatalog(const std::string &catalog_name);
+	::spark::connect::Plan PlanReadTable(const std::string &table_name);
 	arrow::RecordBatchVector GetRecordBatches(::spark::connect::Plan &plan);
 
 	grpc::Status GetStatus(::spark::connect::Plan &plan);
 	std::vector<ColumnInfo> AnalyzePlanSchema(::spark::connect::Plan &plan);
 	~SparkGRPCClient() {};
-	static std::shared_ptr<SparkGRPCClient> GetOrCreateSparkClient(ClientContext &context, const std::string &endpoint);
+	static shared_ptr<SparkGRPCClient> GetOrCreateSparkClient(ClientContext &context, const std::string &endpoint);
 
 private:
 	std::shared_ptr<grpc::Channel> channel;
@@ -46,12 +47,12 @@ private:
 
 class SparkClientState : public ClientContextState {
 public:
-	explicit SparkClientState(std::shared_ptr<SparkGRPCClient> &client) : spark_client(std::move(client)) {
+	explicit SparkClientState(shared_ptr<SparkGRPCClient> &client) : spark_client(std::move(client)) {
 	}
 	explicit SparkClientState(const std::string &endpoint) : spark_client(std::make_shared<SparkGRPCClient>(endpoint)) {
 	}
 
-	std::shared_ptr<SparkGRPCClient> spark_client;
+	shared_ptr<SparkGRPCClient> spark_client;
 };
 
 } // namespace spark
