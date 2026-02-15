@@ -1,7 +1,10 @@
 #include "storage/spark_schema_set.hpp"
 
 #include "duckdb/catalog/catalog.hpp"
+#include "duckdb/common/enums/on_create_conflict.hpp"
+#include "duckdb/common/exception/catalog_exception.hpp"
 #include "duckdb/common/helper.hpp"
+#include "duckdb/common/string.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/value.hpp"
 #include "duckdb/parser/parsed_data/create_schema_info.hpp"
@@ -18,6 +21,33 @@ namespace duckdb {
 namespace spark {
 
 SparkSchemaSet::SparkSchemaSet(Catalog &catalog) : SparkCatalogSet(catalog) {
+}
+
+std::string SparkSchemaSet::CreateSchemaInfoToSQL(const CreateSchemaInfo &info) {
+	duckdb::stringstream ss;
+
+	ss << "CREATE DATABASE ";
+
+	if (info.on_conflict == OnCreateConflict::IGNORE_ON_CONFLICT) {
+		ss << "IF NOT EXISTS ";
+	}
+
+	ss << info.schema;
+	return ss.str();
+}
+
+optional_ptr<CatalogEntry> SparkSchemaSet::CreateSchema(ClientContext &context, CreateSchemaInfo &info) {
+	auto &spark_catalog = catalog.Cast<SparkCatalog>();
+	auto spark_client = spark_catalog.spark_client;
+	auto sql_string = CreateSchemaInfoToSQL(info);
+	auto plan = spark_client->PlanExecuteSQLCommand(sql_string);
+	auto status = spark_client->GetStatus(plan);
+	if (!status.ok()) {
+		throw CatalogException("Fail to create Spark schema `%s` in catalog `%s`. SQL command: `%s`. Error: `%s`.",
+		                       info.schema, info.catalog, sql_string, status.error_message());
+	}
+	auto schema_entry = make_uniq<SparkSchemaEntry>(catalog, info);
+	return CreateEntry(std::move(schema_entry));
 }
 
 std::vector<CreateSchemaInfo> SparkSchemaSet::ParseRecordBatches(arrow::RecordBatchVector &batches) {

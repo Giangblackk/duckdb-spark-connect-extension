@@ -31,11 +31,11 @@ void SparkCatalog::Initialize(bool load_builtin) {
 }
 
 optional_ptr<CatalogEntry> SparkCatalog::CreateSchema(CatalogTransaction transaction, CreateSchemaInfo &info) {
-	return nullptr;
+	return schemas.CreateSchema(transaction.GetContext(), info);
 }
 
 void SparkCatalog::DropSchema(ClientContext &context, DropInfo &info) {
-	throw NotImplementedException("Spark does not support Drop Schema");
+	return schemas.DropEntry(context, info);
 };
 
 optional_ptr<SchemaCatalogEntry> SparkCatalog::LookupSchema(CatalogTransaction transaction,

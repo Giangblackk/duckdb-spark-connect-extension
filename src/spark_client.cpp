@@ -4,6 +4,7 @@
 #include "duckdb/common/types.hpp"
 #include "spark/connect/base.pb.h"
 #include "spark/connect/catalog.pb.h"
+#include "spark/connect/commands.pb.h"
 #include "spark/connect/relations.pb.h"
 #include "spark/connect/types.pb.h"
 
@@ -165,6 +166,37 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 	// setup Plan
 	::spark::connect::Plan p;
 	p.mutable_root()->CopyFrom(rel);
+	return p;
+}
+
+::spark::connect::Plan SparkGRPCClient::PlanExecuteSQLQuery(const std::string &sql_string) {
+	::spark::connect::SQL sql_query;
+	sql_query.set_query(sql_string);
+
+	::spark::connect::Relation rel;
+	rel.mutable_sql()->CopyFrom(sql_query);
+
+	// setup RelationCommon
+	::spark::connect::RelationCommon rc;
+	rc.set_plan_id(next_plan_id++);
+	rc.set_source_info("");
+	rel.mutable_common()->CopyFrom(rc);
+
+	// setup Plan
+	::spark::connect::Plan p;
+	p.mutable_root()->CopyFrom(rel);
+	return p;
+}
+
+::spark::connect::Plan SparkGRPCClient::PlanExecuteSQLCommand(const std::string &sql_string) {
+	// setup SQL Command
+	::spark::connect::SqlCommand sql_command;
+	sql_command.set_sql(sql_string);
+	::spark::connect::Command command;
+	command.mutable_sql_command()->CopyFrom(sql_command);
+
+	::spark::connect::Plan p;
+	p.mutable_command()->CopyFrom(command);
 	return p;
 }
 

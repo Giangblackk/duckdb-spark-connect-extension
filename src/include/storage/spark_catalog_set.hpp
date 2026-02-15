@@ -29,6 +29,9 @@ protected:
 	virtual void LoadEntries(DatabaseInstance &db) = 0;
 	void EraseEntryInternal(const std::string &name);
 
+private:
+	std::string DropSchemaInfoToSQL(const DropInfo &info);
+
 protected:
 	Catalog &catalog;
 	mutex entry_lock;

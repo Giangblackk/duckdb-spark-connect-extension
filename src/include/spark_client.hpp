@@ -31,6 +31,8 @@ public:
 	::spark::connect::Plan PlanListTables(const std::string &pattern, const std::string &db_name);
 	::spark::connect::Plan PlanSetCurrentCatalog(const std::string &catalog_name);
 	::spark::connect::Plan PlanReadTable(const std::string &table_name);
+	::spark::connect::Plan PlanExecuteSQLQuery(const std::string &sql_string);
+	::spark::connect::Plan PlanExecuteSQLCommand(const std::string &sql_string);
 	arrow::RecordBatchVector GetRecordBatches(::spark::connect::Plan &plan);
 
 	grpc::Status GetStatus(::spark::connect::Plan &plan);
