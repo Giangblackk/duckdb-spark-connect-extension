@@ -3,6 +3,7 @@
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/catalog/catalog_transaction.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 #include "spark_table_set.hpp"
 
 namespace duckdb {
@@ -42,7 +43,14 @@ optional_ptr<CatalogEntry> SparkSchemaEntry::CreateFunction(CatalogTransaction t
 	return nullptr;
 };
 optional_ptr<CatalogEntry> SparkSchemaEntry::CreateTable(CatalogTransaction transaction, BoundCreateTableInfo &info) {
-	return nullptr;
+	auto &base_info = info.base->Cast<CreateTableInfo>();
+	if (base_info.on_conflict == OnCreateConflict::REPLACE_ON_CONFLICT) {
+		throw NotImplementedException("REPLACE ON CONFLICT in CreateTable is not implemented for Spark");
+	}
+	if (base_info.on_conflict == OnCreateConflict::ALTER_ON_CONFLICT) {
+		throw NotImplementedException("ALTER ON CONFLICT in CreateTable is not implemented for Spark");
+	}
+	return tables.CreateTable(transaction.GetContext(), info);
 };
 optional_ptr<CatalogEntry> SparkSchemaEntry::CreateView(CatalogTransaction transaction, CreateViewInfo &info) {
 	return nullptr;

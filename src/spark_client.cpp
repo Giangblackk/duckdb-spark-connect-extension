@@ -200,6 +200,28 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 	return p;
 }
 
+::spark::connect::Plan SparkGRPCClient::PlanCreateTable(const std::string &schema_name, const std::string &table_name,
+                                                        ::spark::connect::DataType &table_schema) {
+	::spark::connect::CreateTable ct;
+	ct.set_table_name(schema_name + "." + table_name);
+	ct.mutable_schema()->CopyFrom(table_schema);
+	::spark::connect::Catalog catalog;
+	catalog.mutable_create_table()->CopyFrom(ct);
+	::spark::connect::Relation rel;
+	rel.mutable_catalog()->CopyFrom(catalog);
+
+	// setup RelationCommon
+	::spark::connect::RelationCommon rc;
+	rc.set_plan_id(next_plan_id++);
+	rc.set_source_info("");
+	rel.mutable_common()->CopyFrom(rc);
+
+	// setup Plan
+	::spark::connect::Plan p;
+	p.mutable_root()->CopyFrom(rel);
+
+	return p;
+}
 arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Plan &plan) {
 	// setup ExecutePlanRequest
 	::spark::connect::ExecutePlanRequest request;

@@ -5,6 +5,7 @@
 #include "duckdb/main/client_context_state.hpp"
 #include "spark/connect/base.grpc.pb.h"
 #include "spark/connect/base.pb.h"
+#include "spark/connect/types.pb.h"
 #include "spark_utils.hpp"
 
 #include <arrow/record_batch.h>
@@ -33,6 +34,8 @@ public:
 	::spark::connect::Plan PlanReadTable(const std::string &table_name);
 	::spark::connect::Plan PlanExecuteSQLQuery(const std::string &sql_string);
 	::spark::connect::Plan PlanExecuteSQLCommand(const std::string &sql_string);
+	::spark::connect::Plan PlanCreateTable(const std::string &schema_name, const std::string &table_name,
+	                                       ::spark::connect::DataType &table_schema);
 	arrow::RecordBatchVector GetRecordBatches(::spark::connect::Plan &plan);
 
 	grpc::Status GetStatus(::spark::connect::Plan &plan);

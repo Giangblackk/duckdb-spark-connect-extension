@@ -1,13 +1,17 @@
 #include "spark_table_set.hpp"
 
+#include "duckdb.h"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/parser/column_definition.hpp"
+#include "duckdb/parser/constraints/not_null_constraint.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
+#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 #include "spark_catalog.hpp"
 #include "spark_catalog_set.hpp"
 #include "spark_schema_entry.hpp"
 #include "spark_table_entry.hpp"
 #include "spark_transaction.hpp"
+#include "spark_utils.hpp"
 
 #include <arrow/array/array_binary.h>
 namespace duckdb {
@@ -26,7 +30,38 @@ optional_ptr<CatalogEntry> SparkTableSet::GetEntry(ClientContext &context, const
 }
 
 optional_ptr<CatalogEntry> SparkTableSet::CreateTable(ClientContext &context, BoundCreateTableInfo &info) {
-	return nullptr;
+	auto &spark_catalog = catalog.Cast<SparkCatalog>();
+	auto &spark_client = spark_catalog.spark_client;
+	auto &base = info.base->Cast<CreateTableInfo>();
+	vector<LogicalType> column_types;
+	vector<string> column_names;
+	vector<idx_t> not_nulls;
+
+	// extract column logical types and names
+	for (auto &col : base.columns.Logical()) {
+		column_types.push_back(col.GetType());
+		column_names.push_back(col.Name());
+	}
+
+	// extract constraints
+	for (auto &c : base.constraints) {
+		if (c->type == ConstraintType::NOT_NULL) {
+			auto not_null_constraint = reinterpret_cast<NotNullConstraint *>(c.get());
+			not_nulls.push_back(not_null_constraint->index.index);
+		}
+	}
+	auto table_schema = ConvertDuckDBToSparkType(column_types, column_names, not_nulls);
+	auto plan = spark_client->PlanCreateTable(base.schema, base.table, table_schema);
+
+	auto status = spark_client->GetStatus(plan);
+
+	if (!status.ok()) {
+		throw CatalogException("Fail to create Spark table `%s` in schema `%s` of catalog `%s`. Error: `%s`.",
+		                       base.table, base.schema, base.catalog, status.error_message());
+	}
+
+	auto table_entry = make_uniq<SparkTableEntry>(catalog, schema, base);
+	return CreateEntry(std::move(table_entry));
 }
 
 optional_ptr<CatalogEntry> SparkTableSet::RefreshTable(ClientContext &context, const string &table_name) {
