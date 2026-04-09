@@ -1,5 +1,6 @@
 #include "storage/spark_catalog.hpp"
 
+#include "duckdb/common/enum_util.hpp"
 #include "duckdb/common/exception/binder_exception.hpp"
 #include "duckdb/common/helper.hpp"
 #include "duckdb/storage/database_size.hpp"
@@ -60,11 +61,6 @@ void SparkCatalog::ScanSchemas(ClientContext &context, std::function<void(Schema
 	schemas.Scan(context, [&](CatalogEntry &schema) { callback(schema.Cast<SparkSchemaEntry>()); });
 }
 
-PhysicalOperator &SparkCatalog::PlanInsert(ClientContext &context, PhysicalPlanGenerator &planner, LogicalInsert &op,
-                                           optional_ptr<PhysicalOperator> plan) {
-	throw BinderException("Spark does not supported INSERT yet.");
-}
-
 PhysicalOperator &SparkCatalog::PlanCreateTableAs(ClientContext &context, PhysicalPlanGenerator &planner,
                                                   LogicalCreateTable &op, PhysicalOperator &plan) {
 	throw BinderException("Spark does not supported CTAS yet.");
@@ -77,6 +73,10 @@ PhysicalOperator &SparkCatalog::PlanDelete(ClientContext &context, PhysicalPlanG
 PhysicalOperator &SparkCatalog::PlanUpdate(ClientContext &context, PhysicalPlanGenerator &planner, LogicalUpdate &op,
                                            PhysicalOperator &plan) {
 	throw BinderException("Spark does not supported UPDATE yet.");
+}
+PhysicalOperator &SparkCatalog::PlanMergeInto(ClientContext &context, PhysicalPlanGenerator &planner,
+                                              LogicalMergeInto &op, PhysicalOperator &plan) {
+	throw BinderException("Spark does not supported MERGE INTO yet.");
 }
 
 DatabaseSize SparkCatalog::GetDatabaseSize(ClientContext &context) {

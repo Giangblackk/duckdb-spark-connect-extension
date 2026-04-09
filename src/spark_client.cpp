@@ -222,6 +222,33 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 
 	return p;
 }
+
+::spark::connect::Plan SparkGRPCClient::PlanWriteOperationV2(const std::string &schema_name,
+                                                             const std::string &table_name,
+                                                             const ::spark::connect::WriteOperationV2::Mode save_mode,
+                                                             const char *data, const size_t data_size) {
+	::spark::connect::WriteOperationV2 op;
+	op.set_table_name(schema_name + "." + table_name);
+	op.set_mode(save_mode);
+
+	::spark::connect::Relation rel;
+	::spark::connect::RelationCommon rc;
+	rc.set_plan_id(next_plan_id++);
+	rc.set_source_info("");
+	rel.mutable_common()->CopyFrom(rc);
+	::spark::connect::LocalRelation lr;
+	lr.set_data(data, data_size);
+	rel.mutable_local_relation()->CopyFrom(lr);
+
+	op.mutable_input()->CopyFrom(rel);
+	::spark::connect::Command command;
+	command.mutable_write_operation_v2()->CopyFrom(op);
+
+	::spark::connect::Plan p;
+	p.mutable_command()->CopyFrom(command);
+	return p;
+}
+
 arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Plan &plan) {
 	// setup ExecutePlanRequest
 	::spark::connect::ExecutePlanRequest request;
