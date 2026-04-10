@@ -1,4 +1,8 @@
+#include "spark_insert.hpp"
+
 #include "duckdb/common/arrow/arrow.hpp"
+#include "duckdb/common/arrow/arrow_appender.hpp"
+#include "duckdb/common/arrow/arrow_converter.hpp"
 #include "duckdb/common/assert.hpp"
 #include "duckdb/common/constants.hpp"
 #include "duckdb/common/enums/operator_result_type.hpp"
@@ -8,22 +12,21 @@
 #include "duckdb/common/typedefs.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/vector.hpp"
-#include "duckdb/execution/physical_operator.hpp"
-#include "duckdb/storage/table/append_state.hpp"
-#include "duckdb/planner/operator/logical_insert.hpp"
 #include "duckdb/execution/operator/persistent/physical_insert.hpp"
+#include "duckdb/execution/physical_operator.hpp"
+#include "duckdb/planner/operator/logical_create_table.hpp"
+#include "duckdb/planner/operator/logical_insert.hpp"
+#include "duckdb/storage/table/append_state.hpp"
 #include "spark_catalog.hpp"
 #include "spark_table_entry.hpp"
+
 #include <arrow/buffer.h>
 #include <arrow/c/bridge.h>
+#include <arrow/io/api.h>
 #include <arrow/io/type_fwd.h>
 #include <arrow/ipc/api.h>
-#include <arrow/io/api.h>
 #include <arrow/type_fwd.h>
 #include <string>
-#include "spark_insert.hpp"
-#include "duckdb/common/arrow/arrow_converter.hpp"
-#include "duckdb/common/arrow/arrow_appender.hpp"
 
 namespace duckdb {
 namespace spark {
@@ -42,14 +45,12 @@ SparkInsert::SparkInsert(PhysicalPlan &physical_plan, vector<LogicalType> types,
       set_columns(std::move(set_columns)), action_type(action_type), set_types(std::move(set_types)),
       on_conflict_condition(std::move(on_conflict_condition_p)), do_update_condition(std::move(do_update_condition_p)),
       conflict_target(std::move(conflict_target_p)) {
-	std::cout << "DEBUG: LONG initialization" << "\n";
 }
 
 SparkInsert::SparkInsert(PhysicalPlan &physical_plan, LogicalOperator &op, SchemaCatalogEntry &schema,
-                         unique_ptr<BoundCreateTableInfo> info, idx_t estimated_cardinality)
+                         unique_ptr<BoundCreateTableInfo> create_info, idx_t estimated_cardinality)
     : PhysicalOperator(physical_plan, PhysicalOperatorType::CREATE_TABLE_AS, op.types, estimated_cardinality),
-      info(std::move(info)), insert_table(nullptr), schema(&schema) {
-	std::cout << "DEBUG: SHORT initialization" << "\n";
+      info(std::move(create_info)), insert_table(nullptr), schema(&schema) {
 	PhysicalInsert::GetInsertInfo(*info, insert_types);
 }
 
@@ -69,7 +70,7 @@ static pair<vector<string>, vector<LogicalType>> GetInsertColumns(const SparkIns
 			column_indexes[mapped_index] = column_index;
 		}
 	}
-	for (auto &col : entry.GetColumns().Logical()) {
+	for (auto &col : columns.Logical()) {
 		column_types.push_back(col.GetType());
 		column_names.push_back(col.GetName());
 	}
@@ -77,7 +78,6 @@ static pair<vector<string>, vector<LogicalType>> GetInsertColumns(const SparkIns
 }
 
 unique_ptr<GlobalSinkState> SparkInsert::GetGlobalSinkState(ClientContext &context) const {
-	std::cout << "DEBUG: START globalsinkstate" << "\n";
 	optional_ptr<SparkTableEntry> table;
 	if (info) {                  // CTAS
 		D_ASSERT(!insert_table); // then insert_table should be null
@@ -110,26 +110,21 @@ unique_ptr<GlobalSinkState> SparkInsert::GetGlobalSinkState(ClientContext &conte
 	ArrowConverter::ToArrowSchema(&send_schema, insert_global_state->send_types, send_names, client_properties);
 
 	insert_global_state->insert_schema = arrow::ImportSchema((ArrowSchema *)&send_schema).ValueOrDie();
-
-	std::cout << "DEBUG: END globalsinkstate" << "\n";
 	return insert_global_state;
 }
 unique_ptr<LocalSinkState> SparkInsert::GetLocalSinkState(ExecutionContext &context) const {
-	std::cout << "DEBUG: localsinkstate" << "\n";
-	return make_uniq<SparkInsertLocalState>(context.client, insert_types, bound_defaults, bound_constraints);
+	auto state = make_uniq<SparkInsertLocalState>(context.client, insert_types, bound_defaults, bound_constraints);
+	return state;
 }
 
 SourceResultType SparkInsert::GetData(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const {
-	std::cout << "DEBUG: START getdata" << "\n";
 	auto &gstate = sink_state->Cast<SparkInsertGlobalState>();
 	chunk.SetCapacity(1);
 	chunk.SetValue(0, 0, Value::BIGINT(NumericCast<int64_t>(gstate.changed_count)));
-	std::cout << "DEBUG: END getdata" << "\n";
 	return SourceResultType::FINISHED;
 }
 
 SinkResultType SparkInsert::Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &input) const {
-	std::cout << "DEBUG: START sink" << "\n";
 	auto &gstate = input.global_state.Cast<SparkInsertGlobalState>();
 	auto &lstate = input.local_state.Cast<SparkInsertLocalState>();
 	auto spark_client = schema->catalog.Cast<SparkCatalog>().spark_client;
@@ -152,15 +147,13 @@ SinkResultType SparkInsert::Sink(ExecutionContext &context, DataChunk &chunk, Op
 	auto data_size = buffer->size();
 
 	auto plan = spark_client->PlanWriteOperationV2(
-	    schema->name, insert_table->name, ::spark::connect::WriteOperationV2::Mode::WriteOperationV2_Mode_MODE_APPEND,
+	    schema->name, gstate.table.name, ::spark::connect::WriteOperationV2::Mode::WriteOperationV2_Mode_MODE_APPEND,
 	    data, data_size);
 	auto status = spark_client->GetStatus(plan);
 	if (!status.ok()) {
 		throw CatalogException("Fail to insert into table `%s` in schema `%s` of catalog `%s`. Error: `%s`.",
-		                       insert_table->name, schema->name, schema->catalog.GetName(), status.error_message());
+		                       gstate.table.name, schema->name, schema->catalog.GetName(), status.error_message());
 	}
-
-	std::cout << "DEBUG: END sink" << "\n";
 	return SinkResultType::FINISHED;
 }
 
@@ -196,8 +189,15 @@ PhysicalOperator &SparkCatalog::PlanInsert(ClientContext &context, PhysicalPlanG
 	if (plan) {
 		insert.children.push_back(*plan);
 	}
-	std::cout << "DEBUG insert operator" << "\n";
 	return insert;
 }
+
+PhysicalOperator &SparkCatalog::PlanCreateTableAs(ClientContext &context, PhysicalPlanGenerator &planner,
+                                                  LogicalCreateTable &op, PhysicalOperator &plan) {
+	auto &insert = planner.Make<SparkInsert>(op, op.schema, std::move(op.info), op.estimated_cardinality);
+	insert.children.push_back(plan);
+	return insert;
+}
+
 } // namespace spark
 } // namespace duckdb

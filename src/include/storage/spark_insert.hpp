@@ -7,6 +7,7 @@
 #include "duckdb/common/constants.hpp"
 #include "duckdb/common/enum_util.hpp"
 #include "duckdb/common/enums/operator_result_type.hpp"
+#include "duckdb/common/index_vector.hpp"
 #include "duckdb/common/insertion_order_preserving_map.hpp"
 #include "duckdb/common/typedefs.hpp"
 #include "duckdb/common/types.hpp"
@@ -24,11 +25,11 @@
 #include "duckdb/parser/statement/insert_statement.hpp"
 #include "duckdb/planner/bound_constraint.hpp"
 #include "duckdb/planner/expression.hpp"
-#include "duckdb/common/index_vector.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 #include "duckdb/storage/data_table.hpp"
 #include "spark_table_entry.hpp"
+
 #include <arrow/type.h>
 
 namespace duckdb {
@@ -75,7 +76,7 @@ public:
 	            vector<unique_ptr<Expression>> bound_defaults);
 	// CTAS
 	explicit SparkInsert(PhysicalPlan &physical_plan, LogicalOperator &op, SchemaCatalogEntry &schema,
-	                     unique_ptr<BoundCreateTableInfo> info, idx_t estimated_cardinality);
+	                     unique_ptr<BoundCreateTableInfo> create_info, idx_t estimated_cardinality);
 
 	SourceResultType GetData(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const override;
 
@@ -84,6 +85,7 @@ public:
 	SinkResultType Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &input) const override;
 	SinkFinalizeType Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
 	                          OperatorSinkFinalizeInput &input) const override;
+
 	bool IsSource() const override {
 		return true;
 	}

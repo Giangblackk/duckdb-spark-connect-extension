@@ -61,11 +61,6 @@ void SparkCatalog::ScanSchemas(ClientContext &context, std::function<void(Schema
 	schemas.Scan(context, [&](CatalogEntry &schema) { callback(schema.Cast<SparkSchemaEntry>()); });
 }
 
-PhysicalOperator &SparkCatalog::PlanCreateTableAs(ClientContext &context, PhysicalPlanGenerator &planner,
-                                                  LogicalCreateTable &op, PhysicalOperator &plan) {
-	throw BinderException("Spark does not supported CTAS yet.");
-}
-
 PhysicalOperator &SparkCatalog::PlanDelete(ClientContext &context, PhysicalPlanGenerator &planner, LogicalDelete &op,
                                            PhysicalOperator &plan) {
 	throw BinderException("Spark does not supported DELETE yet.");
