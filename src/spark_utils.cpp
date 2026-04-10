@@ -200,7 +200,9 @@ LogicalType ConvertSparkToDuckDBType(const ::spark::connect::DataType &dtype) {
 	for (idx_t col_idx = 0; col_idx < column_count; col_idx++) {
 		const auto &type = types[col_idx];
 		const auto &name = names[col_idx];
-		const bool nullable = std::find(not_nulls.begin(), not_nulls.end(), col_idx) != not_nulls.end();
+
+		// not found in `not_nulls` -> nullable
+		const bool nullable = std::find(not_nulls.begin(), not_nulls.end(), col_idx) == not_nulls.end();
 		::spark::connect::DataType::StructField f;
 		f.mutable_data_type()->CopyFrom(SetSparkType(type));
 		f.set_name(name);
