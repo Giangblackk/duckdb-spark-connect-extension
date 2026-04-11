@@ -6,6 +6,7 @@
 #include "duckdb/common/assert.hpp"
 #include "duckdb/common/constants.hpp"
 #include "duckdb/common/enums/operator_result_type.hpp"
+#include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/optional_ptr.hpp"
 #include "duckdb/common/pair.hpp"
@@ -58,18 +59,6 @@ static pair<vector<string>, vector<LogicalType>> GetInsertColumns(const SparkIns
 	vector<string> column_names;
 	vector<LogicalType> column_types;
 	auto &columns = entry.GetColumns();
-	if (!insert.column_index_map.empty()) {
-		vector<PhysicalIndex> column_indexes;
-		column_indexes.resize(columns.LogicalColumnCount(), PhysicalIndex(DConstants::INVALID_INDEX));
-		for (idx_t c = 0; c < insert.column_index_map.size(); c++) {
-			auto column_index = PhysicalIndex(c);
-			auto mapped_index = insert.column_index_map[column_index];
-			if (mapped_index == DConstants::INVALID_INDEX) {
-				continue;
-			}
-			column_indexes[mapped_index] = column_index;
-		}
-	}
 	for (auto &col : columns.Logical()) {
 		column_types.push_back(col.GetType());
 		column_names.push_back(col.GetName());
@@ -99,16 +88,16 @@ unique_ptr<GlobalSinkState> SparkInsert::GetGlobalSinkState(ClientContext &conte
 	// FIXME: so if the user doesn't specify the column list
 	// it means that the send_names/send_types is empty.
 	auto [send_names, send_types] = GetInsertColumns(*this, *table);
-	insert_global_state->send_types = send_types;
-	insert_global_state->send_names = send_names;
 	D_ASSERT(send_names.size() == send_types.size());
 	D_ASSERT(send_names.size() > 0);
 	D_ASSERT(send_types.size() > 0);
 
+	// build ArrowSchema in C Interface
 	ArrowSchema send_schema;
 	auto client_properties = context.GetClientProperties();
-	ArrowConverter::ToArrowSchema(&send_schema, insert_global_state->send_types, send_names, client_properties);
+	ArrowConverter::ToArrowSchema(&send_schema, send_types, send_names, client_properties);
 
+	// convert ArrowSchema to Arrow::Schema in C++ interface
 	insert_global_state->insert_schema = arrow::ImportSchema((ArrowSchema *)&send_schema).ValueOrDie();
 	return insert_global_state;
 }
@@ -127,38 +116,51 @@ SourceResultType SparkInsert::GetData(ExecutionContext &context, DataChunk &chun
 SinkResultType SparkInsert::Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &input) const {
 	auto &gstate = input.global_state.Cast<SparkInsertGlobalState>();
 	auto &lstate = input.local_state.Cast<SparkInsertLocalState>();
-	auto spark_client = schema->catalog.Cast<SparkCatalog>().spark_client;
 
-	auto appender =
-	    make_uniq<ArrowAppender>(gstate.send_types, 1, context.client.GetClientProperties(),
-	                             ArrowTypeExtensionData::GetExtensionTypes(context.client, gstate.send_types));
-	appender->Append(chunk, 0, chunk.size(), chunk.size());
-	ArrowArray arr = appender->Finalize();
+	// append chunk to local state's appender
+	lstate.appender->Append(chunk, 0, chunk.size(), chunk.size());
+	gstate.changed_count += chunk.size();
+	return SinkResultType::NEED_MORE_INPUT;
+}
 
+SinkCombineResultType SparkInsert::Combine(ExecutionContext &context, OperatorSinkCombineInput &input) const {
+	auto &gstate = input.global_state.Cast<SparkInsertGlobalState>();
+	auto &lstate = input.local_state.Cast<SparkInsertLocalState>();
+
+	// return underlying arrow array
+	ArrowArray arr = lstate.appender->Finalize();
+
+	// convert into RecordBatch
 	auto record_batch = arrow::ImportRecordBatch(&arr, gstate.insert_schema).ValueOrDie();
 
-	auto sink = arrow::io::BufferOutputStream::Create(4096, arrow::default_memory_pool()).ValueOrDie();
-	auto writer = arrow::ipc::MakeStreamWriter(sink, record_batch->schema()).ValueOrDie();
+	// write to global state buffer stream
+	auto writer = arrow::ipc::MakeStreamWriter(gstate.buffer_stream, gstate.insert_schema).ValueOrDie();
 	auto write_status = writer->WriteRecordBatch(*record_batch);
 	auto close_status = writer->Close();
-
-	auto buffer = sink->Finish().ValueOrDie();
-	auto data = reinterpret_cast<const char *>(buffer->data());
-	auto data_size = buffer->size();
-
-	auto plan = spark_client->PlanWriteOperationV2(
-	    schema->name, gstate.table.name, ::spark::connect::WriteOperationV2::Mode::WriteOperationV2_Mode_MODE_APPEND,
-	    data, data_size);
-	auto status = spark_client->GetStatus(plan);
-	if (!status.ok()) {
-		throw CatalogException("Fail to insert into table `%s` in schema `%s` of catalog `%s`. Error: `%s`.",
-		                       gstate.table.name, schema->name, schema->catalog.GetName(), status.error_message());
-	}
-	return SinkResultType::FINISHED;
+	return SinkCombineResultType::FINISHED;
 }
 
 SinkFinalizeType SparkInsert::Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
                                        OperatorSinkFinalizeInput &input) const {
+	auto &gstate = input.global_state.Cast<SparkInsertGlobalState>();
+	auto spark_client = schema->catalog.Cast<SparkCatalog>().spark_client;
+
+	// close the stream and return buffer
+	auto buffer = gstate.buffer_stream->Finish().ValueOrDie();
+	auto data = reinterpret_cast<const char *>(buffer->data());
+	auto data_size = buffer->size();
+
+	// build Spark Connect Plan
+	auto plan = spark_client->PlanWriteOperationV2(
+	    schema->name, gstate.table.name, ::spark::connect::WriteOperationV2::Mode::WriteOperationV2_Mode_MODE_APPEND,
+	    data, data_size);
+
+	auto status = spark_client->GetStatus(plan);
+	if (!status.ok()) {
+		throw ExecutorException("Fail to insert into table `%s` in schema `%s` of catalog `%s`. Error: `%s`.",
+		                        gstate.table.name, schema->name, schema->catalog.GetName(), status.error_message());
+	}
+
 	return SinkFinalizeType::READY;
 }
 

@@ -4,9 +4,11 @@
 #include "duckdb/catalog/catalog_entry/schema_catalog_entry.hpp"
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include "duckdb/common/allocator.hpp"
+#include "duckdb/common/arrow/arrow_appender.hpp"
 #include "duckdb/common/constants.hpp"
 #include "duckdb/common/enum_util.hpp"
 #include "duckdb/common/enums/operator_result_type.hpp"
+#include "duckdb/common/helper.hpp"
 #include "duckdb/common/index_vector.hpp"
 #include "duckdb/common/insertion_order_preserving_map.hpp"
 #include "duckdb/common/typedefs.hpp"
@@ -30,7 +32,10 @@
 #include "duckdb/storage/data_table.hpp"
 #include "spark_table_entry.hpp"
 
+#include <arrow/io/memory.h>
+#include <arrow/record_batch.h>
 #include <arrow/type.h>
+#include <arrow/type_fwd.h>
 
 namespace duckdb {
 namespace spark {
@@ -39,12 +44,13 @@ class SparkInsertGlobalState : public GlobalSinkState {
 public:
 	explicit SparkInsertGlobalState(ClientContext &context, SparkTableEntry &table,
 	                                const vector<LogicalType> &return_types)
-	    : table(table), changed_count(0) {};
+	    : table(table), changed_count(0) {
+		buffer_stream = arrow::io::BufferOutputStream::Create(4096, arrow::default_memory_pool()).ValueOrDie();
+	};
 	SparkTableEntry &table;
 	idx_t changed_count;
-	vector<LogicalType> send_types;
-	vector<string> send_names;
 	std::shared_ptr<arrow::Schema> insert_schema;
+	std::shared_ptr<arrow::io::BufferOutputStream> buffer_stream;
 };
 
 class SparkInsertLocalState : public LocalSinkState {
@@ -56,12 +62,13 @@ public:
 		for (auto &bound_default : bound_defaults) {
 			default_executor.AddExpression(*bound_default);
 		}
-		returning_data_chunk.Initialize(Allocator::Get(context), types);
+		appender = make_uniq<ArrowAppender>(types, 1, context.GetClientProperties(),
+		                                    ArrowTypeExtensionData::GetExtensionTypes(context, types));
 	};
 	ExpressionExecutor default_executor;
 	const vector<unique_ptr<BoundConstraint>> &bound_constraints_;
 	unique_ptr<ConstraintState> constraint_state_;
-	DataChunk returning_data_chunk;
+	unique_ptr<ArrowAppender> appender;
 };
 
 class SparkInsert : public PhysicalOperator {
@@ -83,6 +90,8 @@ public:
 	unique_ptr<GlobalSinkState> GetGlobalSinkState(ClientContext &context) const override;
 	unique_ptr<LocalSinkState> GetLocalSinkState(ExecutionContext &context) const override;
 	SinkResultType Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &input) const override;
+	SinkCombineResultType Combine(ExecutionContext &context, OperatorSinkCombineInput &input) const override;
+
 	SinkFinalizeType Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
 	                          OperatorSinkFinalizeInput &input) const override;
 
