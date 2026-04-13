@@ -9,6 +9,7 @@
 #include "duckdb/common/vector.hpp"
 #include "duckdb/function/table/arrow.hpp"
 #include "duckdb/main/config.hpp"
+#include "duckdb/parser/parsed_data/create_schema_info.hpp"
 #include "spark/connect/types.pb.h"
 
 #include <arrow/api.h>
@@ -346,5 +347,50 @@ LogicalType ConvertSparkToDuckDBType(const ::spark::connect::DataType &dtype) {
 		break;
 	}
 }
+std::string CreateSchemaInfoToSQL(const CreateSchemaInfo &info) {
+	duckdb::stringstream ss;
+
+	ss << "CREATE DATABASE ";
+
+	if (info.on_conflict == OnCreateConflict::IGNORE_ON_CONFLICT) {
+		ss << "IF NOT EXISTS ";
+	}
+
+	ss << info.schema;
+	return ss.str();
+}
+
+std::string DropSchemaInfoToSQL(const DropInfo &info) {
+	duckdb::stringstream ss;
+
+	ss << "DROP DATABASE ";
+
+	if (info.if_not_found == OnEntryNotFound::RETURN_NULL) {
+		ss << "IF EXISTS ";
+	}
+	ss << info.name;
+
+	if (info.cascade) {
+		ss << " CASCADE";
+	}
+	return ss.str();
+}
+
+std::string DropTableInfoToSQL(const DropInfo &info) {
+	duckdb::stringstream ss;
+
+	ss << "DROP TABLE ";
+
+	if (info.if_not_found == OnEntryNotFound::RETURN_NULL) {
+		ss << "IF EXISTS ";
+	}
+	ss << info.schema + "." + info.name;
+
+	if (info.cascade) {
+		ss << " CASCADE";
+	}
+	return ss.str();
+}
+
 } // namespace spark
 } // namespace duckdb

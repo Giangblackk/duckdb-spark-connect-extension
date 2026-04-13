@@ -1,7 +1,6 @@
 #include "storage/spark_schema_set.hpp"
 
 #include "duckdb/catalog/catalog.hpp"
-#include "duckdb/common/enums/on_create_conflict.hpp"
 #include "duckdb/common/exception/catalog_exception.hpp"
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/string.hpp"
@@ -21,19 +20,6 @@ namespace duckdb {
 namespace spark {
 
 SparkSchemaSet::SparkSchemaSet(Catalog &catalog) : SparkCatalogSet(catalog) {
-}
-
-std::string SparkSchemaSet::CreateSchemaInfoToSQL(const CreateSchemaInfo &info) {
-	duckdb::stringstream ss;
-
-	ss << "CREATE DATABASE ";
-
-	if (info.on_conflict == OnCreateConflict::IGNORE_ON_CONFLICT) {
-		ss << "IF NOT EXISTS ";
-	}
-
-	ss << info.schema;
-	return ss.str();
 }
 
 optional_ptr<CatalogEntry> SparkSchemaSet::CreateSchema(ClientContext &context, CreateSchemaInfo &info) {
@@ -97,6 +83,7 @@ void SparkSchemaSet::LoadEntries(DatabaseInstance &db) {
 	}
 	called_load_entries = true;
 }
+
 optional_ptr<CatalogEntry> SparkCatalogSet::CreateEntry(unique_ptr<CatalogEntry> entry) {
 	auto result = entry.get();
 	if (result->name.empty()) {

@@ -5,6 +5,7 @@
 #include "duckdb/common/types/data_chunk.hpp"
 #include "duckdb/common/vector.hpp"
 #include "duckdb/function/table/arrow/arrow_duck_schema.hpp"
+#include "duckdb/parser/parsed_data/drop_info.hpp"
 #include "spark/connect/types.pb.h"
 
 #include <arrow/record_batch.h>
@@ -55,5 +56,12 @@ LogicalType ConvertSparkToDuckDBType(const ::spark::connect::DataType &dtype);
                                                     const vector<idx_t> &not_nulls);
 
 ::spark::connect::DataType SetSparkType(const LogicalType &type);
+
+std::string CreateSchemaInfoToSQL(const CreateSchemaInfo &info);
+
+std::string DropSchemaInfoToSQL(const DropInfo &info);
+
+std::string DropTableInfoToSQL(const DropInfo &info);
+
 } // namespace spark
 } // namespace duckdb

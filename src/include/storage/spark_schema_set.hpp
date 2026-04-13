@@ -22,7 +22,6 @@ protected:
 
 private: // methods
 	static std::vector<CreateSchemaInfo> ParseRecordBatches(arrow::RecordBatchVector &batches);
-	std::string CreateSchemaInfoToSQL(const CreateSchemaInfo &info);
 
 private:
 	bool populated_entire_set = false;
