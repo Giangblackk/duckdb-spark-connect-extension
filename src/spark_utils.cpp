@@ -14,6 +14,10 @@
 
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
+#include <arrow/type.h>
+#include <arrow/type_fwd.h>
+#include <arrow/util/key_value_metadata.h>
+#include <memory>
 #include <string>
 
 namespace duckdb {
@@ -104,7 +108,7 @@ void WriteRecordBatchToDataChunk(ClientContext &context, const std::shared_ptr<a
 	ArrowScanLocalState fake_local_state(std::move(current_chunk), context);
 
 	// Write data to output DataChunk
-	ArrowTableFunction::ArrowToDuckDB(fake_local_state, arrow_table.GetColumns(), output, 0);
+	ArrowTableFunction::ArrowToDuckDB(fake_local_state, arrow_table.GetColumns(), output, 0, false, false);
 
 	// Verify output
 	output.Verify();
@@ -181,9 +185,94 @@ LogicalType ConvertSparkToDuckDBType(const ::spark::connect::DataType &dtype) {
 		return LogicalType::VARCHAR;
 	case ::spark::connect::DataType::KIND_NOT_SET:
 		throw InvalidTypeException("Spark Data type are not set");
+		break;
 	}
 	// return default data type
 	return LogicalType::SQLNULL;
+}
+
+std::shared_ptr<arrow::DataType> ConvertSparkToArrowType(const ::spark::connect::DataType &dtype) {
+	const auto field_kind = dtype.kind_case();
+	switch (field_kind) {
+	case ::spark::connect::DataType::kNull:
+		return arrow::null();
+	case ::spark::connect::DataType::kBinary:
+		return arrow::binary();
+	case ::spark::connect::DataType::kBoolean:
+		return arrow::boolean();
+	case ::spark::connect::DataType::kByte:
+		return arrow::int8();
+	case ::spark::connect::DataType::kShort:
+		return arrow::int16();
+	case ::spark::connect::DataType::kInteger:
+		return arrow::int32();
+	case ::spark::connect::DataType::kLong:
+		return arrow::int64();
+	case ::spark::connect::DataType::kFloat:
+		return arrow::float32();
+	case ::spark::connect::DataType::kDouble:
+		return arrow::float64();
+	case ::spark::connect::DataType::kDecimal: {
+		const auto &decimal_dtype = dtype.decimal();
+		auto scale = decimal_dtype.scale();
+		auto precision = decimal_dtype.precision();
+		return arrow::decimal128(precision, scale);
+	}
+	case ::spark::connect::DataType::kString:
+		return arrow::utf8();
+	case ::spark::connect::DataType::kChar:
+		return arrow::utf8();
+	case ::spark::connect::DataType::kVarChar:
+		return arrow::utf8();
+	case ::spark::connect::DataType::kDate:
+		return arrow::date32();
+	case ::spark::connect::DataType::kTimestamp:
+		return arrow::timestamp(arrow::TimeUnit::MICRO, "UTC");
+	case ::spark::connect::DataType::kTimestampNtz:
+		return arrow::timestamp(arrow::TimeUnit::MICRO);
+	case ::spark::connect::DataType::kCalendarInterval:
+		return arrow::month_day_nano_interval();
+	case ::spark::connect::DataType::kYearMonthInterval:
+		return arrow::month_interval();
+	case ::spark::connect::DataType::kDayTimeInterval:
+		return arrow::duration(arrow::TimeUnit::MICRO);
+	case ::spark::connect::DataType::kArray: {
+		const auto &array_dtype = dtype.array();
+		auto element_type = ConvertSparkToArrowType(array_dtype.element_type());
+		bool nullable = array_dtype.contains_null();
+		return arrow::list(arrow::field("element", element_type, nullable));
+	}
+	case ::spark::connect::DataType::kStruct: {
+		const auto &struct_dtype = dtype.struct_();
+		arrow::FieldVector arrow_fields;
+		arrow_fields.reserve(struct_dtype.fields_size());
+		for (const auto &field : struct_dtype.fields()) {
+			auto field_arrow_type = ConvertSparkToArrowType(field.data_type());
+			bool nullable = field.nullable();
+			auto arrow_field = arrow::field(field.name(), field_arrow_type, nullable);
+			// Preserve Spark metadata (e.g. comments) as Arrow field metadata
+			if (field.has_metadata() && !field.metadata().empty()) {
+				auto metadata = arrow::KeyValueMetadata::Make({"spark.metadata"}, {field.metadata()});
+				arrow_field = arrow_field->WithMetadata(metadata);
+			}
+			arrow_fields.push_back(std::move(arrow_field));
+		}
+		return arrow::struct_(arrow_fields);
+	}
+	case ::spark::connect::DataType::kMap: {
+		const auto &map_dtype = dtype.map();
+		auto key_dtype = ConvertSparkToArrowType(map_dtype.key_type());
+		auto value_dtype = ConvertSparkToArrowType(map_dtype.value_type());
+		bool value_contains_null = map_dtype.value_contains_null();
+		return arrow::map(key_dtype, arrow::field("value", value_dtype, value_contains_null));
+	}
+	case ::spark::connect::DataType::kUdt:
+		throw InvalidTypeException("Spark UserDefinedType are currently not supported");
+	case ::spark::connect::DataType::kUnparsed:
+		return arrow::utf8();
+	case ::spark::connect::DataType::KIND_NOT_SET:
+		throw InvalidTypeException("Spark Data type are not set");
+	}
 }
 
 ::spark::connect::DataType ConvertDuckDBToSparkType(const vector<LogicalType> &types, const vector<string> &names,

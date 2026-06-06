@@ -90,7 +90,7 @@ static unique_ptr<FunctionData> SparkSetCurrentCatalogBind(ClientContext &contex
 	unique_ptr<SetCurrentCatalogBindData> bind_data = make_uniq<SetCurrentCatalogBindData>(sparkClient, params);
 
 	// Initialize the names and return types from analyze plan
-	auto columns = bind_data->spark_client->AnalyzePlanSchema(bind_data->set_current_catalog_plan);
+	auto columns = bind_data->spark_client->AnalyzePlanToColumnInfo(bind_data->set_current_catalog_plan);
 	for (const auto &column : columns) {
 		names.emplace_back(column.name);
 		return_types.emplace_back(column.type);

@@ -92,7 +92,7 @@ static unique_ptr<FunctionData> SparkListCatalogsBind(ClientContext &context, Ta
 	unique_ptr<ListCatalogsBindData> bind_data = make_uniq<ListCatalogsBindData>(sparkClient, params);
 
 	// Initialize the names and return types from analyze plan
-	auto columns = bind_data->spark_client->AnalyzePlanSchema(bind_data->list_catalogs_plan);
+	auto columns = bind_data->spark_client->AnalyzePlanToColumnInfo(bind_data->list_catalogs_plan);
 	for (const auto &column : columns) {
 		names.emplace_back(column.name);
 		return_types.emplace_back(column.type);

@@ -26,11 +26,20 @@ TableFunction SparkTableEntry::GetScanFunction(ClientContext &context, unique_pt
 TableFunction SparkTableEntry::GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data,
                                                const EntryLookupInfo &lookup) {
 	auto &spark_catalog = catalog.Cast<SparkCatalog>();
-	auto catalog_transaction = spark_catalog.GetCatalogTransaction(context);
 	auto spark_client = spark_catalog.spark_client;
 	auto params = ScanTableParams();
 	params.table_name = schema.name + "." + lookup.GetEntryName();
-	unique_ptr<ScanTableBindData> result = make_uniq<ScanTableBindData>(spark_client, params);
+	unique_ptr<SparkScanTableBindData> result = make_uniq<SparkScanTableBindData>(spark_client, params);
+
+	// get arrow schema from analyzing plan, export and populate shema to attributes
+	auto arrow_shema = result->spark_client->AnalyzePlanToArrowSchema(result->scan_table_plan);
+	auto status = arrow::ExportSchema(*std::move(arrow_shema), &result->schema_root.arrow_schema);
+	if (!status.ok()) {
+		throw BinderException("Arrow schema export failed: " + status.ToString());
+	}
+	ArrowTableFunction::PopulateArrowTableSchema(duckdb::DBConfig::GetConfig(context), result->arrow_table,
+	                                             result->schema_root.arrow_schema);
+
 	bind_data = std::move(result);
 	auto function = SparkScanTableFunction();
 	return function;

@@ -2,8 +2,11 @@
 
 #include "duckdb.h"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/types/value.hpp"
 #include "duckdb/parser/column_definition.hpp"
 #include "duckdb/parser/constraints/not_null_constraint.hpp"
+#include "duckdb/parser/expression/constant_expression.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 #include "spark_catalog.hpp"
@@ -90,9 +93,10 @@ void SparkTableSet::AddColumnsToTableInfo(CreateTableInfo &info, DatabaseInstanc
 	auto spark_client = spark_catalog.spark_client;
 	auto schema_name = schema.name;
 	auto read_table_plan = spark_client->PlanReadTable(schema_name + "." + table_name);
-	auto column_info = spark_client->AnalyzePlanSchema(read_table_plan);
+	auto column_info = spark_client->AnalyzePlanToColumnInfo(read_table_plan);
 	for (const auto &column : column_info) {
 		auto column_def = ColumnDefinition(column.name, column.type);
+		column_def.SetDefaultValue(make_uniq<ConstantExpression>(Value(nullptr)));
 		info.columns.AddColumn(std::move(column_def));
 	}
 	info.columns.Finalize();

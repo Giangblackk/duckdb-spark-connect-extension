@@ -1,5 +1,6 @@
 #pragma once
 
+#include "duckdb/common/shared_ptr.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/client_context_state.hpp"
@@ -10,12 +11,15 @@
 #include "spark_utils.hpp"
 
 #include <arrow/record_batch.h>
+#include <arrow/result.h>
 #include <arrow/table.h>
+#include <arrow/type.h>
 #include <arrow/type_fwd.h>
 #include <cstdint>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
 #include <grpcpp/support/status.h>
+#include <grpcpp/support/sync_stream.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -42,8 +46,11 @@ public:
 	                                            const char *data, const size_t data_size);
 	arrow::RecordBatchVector GetRecordBatches(::spark::connect::Plan &plan);
 
+	arrow::Result<std::shared_ptr<arrow::RecordBatch>> IterateRecordBatches(::spark::connect::Plan &plan);
+
 	grpc::Status GetStatus(::spark::connect::Plan &plan);
-	std::vector<ColumnInfo> AnalyzePlanSchema(::spark::connect::Plan &plan);
+	std::vector<ColumnInfo> AnalyzePlanToColumnInfo(::spark::connect::Plan &plan);
+	std::shared_ptr<arrow::Schema> AnalyzePlanToArrowSchema(::spark::connect::Plan &plan);
 	~SparkGRPCClient() {};
 	static shared_ptr<SparkGRPCClient> GetOrCreateSparkClient(ClientContext &context, const std::string &endpoint);
 

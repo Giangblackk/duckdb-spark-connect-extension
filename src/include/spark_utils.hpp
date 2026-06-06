@@ -9,6 +9,8 @@
 #include "spark/connect/types.pb.h"
 
 #include <arrow/record_batch.h>
+#include <arrow/type.h>
+#include <memory>
 #include <string>
 
 namespace duckdb {
@@ -54,6 +56,8 @@ LogicalType ConvertSparkToDuckDBType(const ::spark::connect::DataType &dtype);
 
 ::spark::connect::DataType ConvertDuckDBToSparkType(const vector<LogicalType> &types, const vector<string> &names,
                                                     const vector<idx_t> &not_nulls);
+
+std::shared_ptr<arrow::DataType> ConvertSparkToArrowType(const ::spark::connect::DataType &dtype);
 
 ::spark::connect::DataType SetSparkType(const LogicalType &type);
 

@@ -7,6 +7,7 @@
 #include "spark/connect/commands.pb.h"
 #include "spark/connect/relations.pb.h"
 #include "spark/connect/types.pb.h"
+#include "spark_utils.hpp"
 
 #include <arrow/buffer.h>
 #include <arrow/io/interfaces.h>
@@ -19,6 +20,7 @@
 #include <arrow/record_batch.h>
 #include <arrow/status.h>
 #include <arrow/type_fwd.h>
+#include <arrow/util/key_value_metadata.h>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
 #include <grpcpp/client_context.h>
@@ -302,7 +304,56 @@ arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Pla
 	return batches;
 }
 
-std::vector<ColumnInfo> SparkGRPCClient::AnalyzePlanSchema(::spark::connect::Plan &plan) {
+arrow::Result<std::shared_ptr<arrow::RecordBatch>> SparkGRPCClient::IterateRecordBatches(::spark::connect::Plan &plan) {
+	// setup ExecutePlanRequest
+	::spark::connect::ExecutePlanRequest request;
+	auto operation_id = generate_uuid();
+	request.set_session_id(session_id);
+	request.set_operation_id(operation_id);
+	request.set_client_type("duckdb");
+	request.mutable_plan()->CopyFrom(plan);
+
+	// setup UserContext
+	::spark::connect::UserContext uc;
+	uc.set_user_name("duckdb");
+	request.mutable_user_context()->CopyFrom(uc);
+
+	// execute plan
+	grpc::ClientContext context;
+	auto stream = stub_->ExecutePlan(&context, request);
+	::spark::connect::ExecutePlanResponse msg;
+	while (stream->Read(&msg)) {
+		auto response_type = msg.response_type_case();
+		// if message is Arrow BatchRecord, parse it
+		if (response_type == ::spark::connect::ExecutePlanResponse::kArrowBatch) {
+			// read data from response
+			auto data = msg.arrow_batch().data();
+
+			// convert to buffer
+			auto buffer = arrow::Buffer::FromString(data);
+
+			// conver to BufferReader
+			auto input_stream = std::make_shared<arrow::io::BufferReader>(buffer);
+
+			// create RecordBatchStreamReader to parse Buffer
+			auto _result = arrow::ipc::RecordBatchStreamReader::Open(input_stream);
+			// handle result of stream reader, if not ok, continue to next message in stream
+			if (!_result.ok()) {
+				return arrow::Status::IOError("RecordBatchStreamReader::Open error: " + _result.status().message());
+			}
+			auto batch_reader = _result.ValueOrDie();
+
+			// read record batches from reader
+			std::shared_ptr<arrow::RecordBatch> batch;
+			while (batch_reader->ReadNext(&batch).ok() && batch) {
+				return batch;
+			}
+		}
+	}
+	return nullptr;
+}
+
+std::vector<ColumnInfo> SparkGRPCClient::AnalyzePlanToColumnInfo(::spark::connect::Plan &plan) {
 	::spark::connect::AnalyzePlanRequest analyze_plan_request;
 	auto operation_id = generate_uuid();
 	analyze_plan_request.set_session_id(session_id);
@@ -331,11 +382,54 @@ std::vector<ColumnInfo> SparkGRPCClient::AnalyzePlanSchema(::spark::connect::Pla
 		auto data_struct = static_cast<::spark::connect::DataType::Struct>(schema.struct_());
 		for (const auto &f : data_struct.fields()) {
 			const auto &field_name = f.name();
-			auto field_kind = f.data_type().kind_case();
 			columns.emplace_back(field_name, ConvertSparkToDuckDBType(f.data_type()));
 		}
 	}
 	return columns;
+}
+
+std::shared_ptr<arrow::Schema> SparkGRPCClient::AnalyzePlanToArrowSchema(::spark::connect::Plan &plan) {
+	::spark::connect::AnalyzePlanRequest analyze_plan_request;
+	auto operation_id = generate_uuid();
+	analyze_plan_request.set_session_id(session_id);
+	analyze_plan_request.set_client_type("duckdb");
+
+	::spark::connect::UserContext uc;
+	uc.set_user_name("duckdb");
+	analyze_plan_request.mutable_user_context()->CopyFrom(uc);
+
+	::spark::connect::AnalyzePlanRequest::Schema s;
+	s.mutable_plan()->CopyFrom(plan);
+
+	analyze_plan_request.mutable_schema()->CopyFrom(s);
+
+	// execute plan
+	grpc::ClientContext context;
+	::spark::connect::AnalyzePlanResponse resp;
+	auto status = stub_->AnalyzePlan(&context, analyze_plan_request, &resp);
+	if (!status.ok()) {
+		throw ConnectionException(status.error_message());
+	}
+	auto schema = resp.schema().schema();
+	auto schema_kind = schema.kind_case();
+
+	arrow::FieldVector fields;
+	if (schema_kind == ::spark::connect::DataType::KindCase::kStruct) {
+		auto data_struct = static_cast<::spark::connect::DataType::Struct>(schema.struct_());
+		fields.reserve(data_struct.fields_size());
+		for (const auto &field : data_struct.fields()) {
+			auto arrow_type = ConvertSparkToArrowType(field.data_type());
+			bool nullable = field.nullable();
+			auto arrow_field = arrow::field(field.name(), arrow_type, nullable);
+			// Preserve Spark metadata (e.g. comments) as Arrow field metadata
+			if (field.has_metadata() && !field.metadata().empty()) {
+				auto metadata = arrow::KeyValueMetadata::Make({"spark.metadata"}, {field.metadata()});
+				arrow_field = arrow_field->WithMetadata(metadata);
+			}
+			fields.push_back(std::move(arrow_field));
+		}
+	}
+	return arrow::schema(fields);
 }
 
 grpc::Status SparkGRPCClient::GetStatus(::spark::connect::Plan &plan) {

@@ -40,18 +40,18 @@ SparkInsert::SparkInsert(PhysicalPlan &physical_plan, vector<LogicalType> types,
                          unique_ptr<Expression> on_conflict_condition_p, unique_ptr<Expression> do_update_condition_p,
                          unordered_set<column_t> conflict_target_p, vector<unique_ptr<Expression>> bound_defaults)
     : PhysicalOperator(physical_plan, PhysicalOperatorType::EXTENSION, std::move(types), estimated_cardinality),
-      insert_table(&table), insert_types(table.GetTypes()), schema(&table.schema),
-      column_index_map(std::move(column_index_map_p)), bound_defaults(std::move(bound_defaults)),
-      bound_constraints(std::move(bound_constraints_p)), set_expressions(std::move(set_expressions)),
-      set_columns(std::move(set_columns)), action_type(action_type), set_types(std::move(set_types)),
-      on_conflict_condition(std::move(on_conflict_condition_p)), do_update_condition(std::move(do_update_condition_p)),
-      conflict_target(std::move(conflict_target_p)) {
+      insert_table(&table), schema(&table.schema), insert_types(table.GetTypes()),
+      bound_defaults(std::move(bound_defaults)), bound_constraints(std::move(bound_constraints_p)),
+      set_expressions(std::move(set_expressions)), set_columns(std::move(set_columns)), set_types(std::move(set_types)),
+      action_type(action_type), on_conflict_condition(std::move(on_conflict_condition_p)),
+      do_update_condition(std::move(do_update_condition_p)), conflict_target(std::move(conflict_target_p)),
+      column_index_map(std::move(column_index_map_p)) {
 }
 
 SparkInsert::SparkInsert(PhysicalPlan &physical_plan, LogicalOperator &op, SchemaCatalogEntry &schema,
                          unique_ptr<BoundCreateTableInfo> create_info, idx_t estimated_cardinality)
     : PhysicalOperator(physical_plan, PhysicalOperatorType::CREATE_TABLE_AS, op.types, estimated_cardinality),
-      info(std::move(create_info)), insert_table(nullptr), schema(&schema) {
+      insert_table(nullptr), schema(&schema), info(std::move(create_info)) {
 	PhysicalInsert::GetInsertInfo(*info, insert_types);
 }
 

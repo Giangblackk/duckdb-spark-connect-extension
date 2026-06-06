@@ -30,6 +30,7 @@ set(EXTENSION_SOURCES
     src/spark_list_tables.cpp
     src/spark_set_current_catalog.cpp
     src/spark_scan_table.cpp
+    src/spark_arrow_reader.cpp
     src/storage/spark_catalog.cpp
     src/storage/spark_transaction.cpp
     src/storage/spark_catalog_set.cpp

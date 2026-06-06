@@ -92,7 +92,7 @@ static unique_ptr<FunctionData> SparkListTablesBind(ClientContext &context, Tabl
 	unique_ptr<ListTablesBindData> bind_data = make_uniq<ListTablesBindData>(sparkClient, params);
 
 	// Initialize the names and return types from analyze plan
-	auto columns = bind_data->spark_client->AnalyzePlanSchema(bind_data->list_tables_plan);
+	auto columns = bind_data->spark_client->AnalyzePlanToColumnInfo(bind_data->list_tables_plan);
 	for (const auto &column : columns) {
 		names.push_back(column.name);
 		return_types.push_back(column.type);
