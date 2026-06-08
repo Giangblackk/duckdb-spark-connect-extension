@@ -304,8 +304,7 @@ arrow::RecordBatchVector SparkGRPCClient::GetRecordBatches(::spark::connect::Pla
 	return batches;
 }
 
-arrow::Result<std::shared_ptr<arrow::RecordBatch>> SparkGRPCClient::IterateRecordBatches(::spark::connect::Plan &plan) {
-	// setup ExecutePlanRequest
+std::shared_ptr<SparkStreamState> SparkGRPCClient::GetSparkStreamState(::spark::connect::Plan &plan) {
 	::spark::connect::ExecutePlanRequest request;
 	auto operation_id = generate_uuid();
 	request.set_session_id(session_id);
@@ -319,10 +318,18 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> SparkGRPCClient::IterateRecor
 	request.mutable_user_context()->CopyFrom(uc);
 
 	// execute plan
-	grpc::ClientContext context;
-	auto stream = stub_->ExecutePlan(&context, request);
+	auto context = std::make_unique<grpc::ClientContext>();
+	auto stream = stub_->ExecutePlan(context.get(), request);
+	auto st = std::make_shared<SparkStreamState>();
+	st->context = std::move(context);
+	st->stream = std::move(stream);
+	return st;
+}
+
+arrow::Result<std::shared_ptr<arrow::RecordBatch>>
+SparkGRPCClient::IterateSparkSteamState(const std::shared_ptr<SparkStreamState> &state) {
 	::spark::connect::ExecutePlanResponse msg;
-	while (stream->Read(&msg)) {
+	while (state->stream->Read(&msg)) {
 		auto response_type = msg.response_type_case();
 		// if message is Arrow BatchRecord, parse it
 		if (response_type == ::spark::connect::ExecutePlanResponse::kArrowBatch) {

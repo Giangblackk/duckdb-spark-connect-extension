@@ -29,6 +29,13 @@ namespace spark {
 
 #define DEFAULT_TIMEOUT_SEC 5
 
+// Stateful stream holder that maintains the gRPC stream across iterations
+struct SparkStreamState {
+	// keep the gRPC context and client reader alive until the end of the iterator batch reader
+	std::unique_ptr<grpc::ClientContext> context;
+	std::unique_ptr<grpc::ClientReader<::spark::connect::ExecutePlanResponse>> stream;
+};
+
 class SparkGRPCClient {
 public:
 	explicit SparkGRPCClient(const std::string &endpoint);
@@ -46,7 +53,9 @@ public:
 	                                            const char *data, const size_t data_size);
 	arrow::RecordBatchVector GetRecordBatches(::spark::connect::Plan &plan);
 
-	arrow::Result<std::shared_ptr<arrow::RecordBatch>> IterateRecordBatches(::spark::connect::Plan &plan);
+	std::shared_ptr<SparkStreamState> GetSparkStreamState(::spark::connect::Plan &plan);
+	static arrow::Result<std::shared_ptr<arrow::RecordBatch>>
+	IterateSparkSteamState(const std::shared_ptr<SparkStreamState> &state);
 
 	grpc::Status GetStatus(::spark::connect::Plan &plan);
 	std::vector<ColumnInfo> AnalyzePlanToColumnInfo(::spark::connect::Plan &plan);

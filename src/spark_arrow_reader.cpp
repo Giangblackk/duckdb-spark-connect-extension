@@ -1,6 +1,7 @@
 #include "spark_arrow_reader.hpp"
 
 #include "duckdb/common/shared_ptr.hpp"
+#include "spark_client.hpp"
 
 #include <arrow/buffer.h>
 #include <arrow/io/memory.h>
@@ -16,12 +17,11 @@ unique_ptr<ArrowArrayStreamWrapper> SparkStreamFactory::Produce(uintptr_t factor
 
 	auto wrapper = make_uniq<ArrowArrayStreamWrapper>();
 
-	auto st = std::make_shared<SparkStreamState>();
-	st->factory = factory;
+	auto st = factory->spark_client->GetSparkStreamState(factory->plan);
 
 	// Create Arrow iterator
 	auto iter = arrow::MakeFunctionIterator([st]() -> arrow::Result<std::shared_ptr<arrow::RecordBatch>> {
-		return st->factory->spark_client->IterateRecordBatches(st->factory->plan);
+		return SparkGRPCClient::IterateSparkSteamState(st);
 	});
 	// Convert Iterator => RecordBatchReader => ArrowArrayStream
 	auto schema = factory->spark_client->AnalyzePlanToArrowSchema(factory->plan);

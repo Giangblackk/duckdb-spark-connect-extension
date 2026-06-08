@@ -14,8 +14,8 @@
 namespace duckdb {
 namespace spark {
 SparkCatalog::SparkCatalog(AttachedDatabase &db_p, const string &connection_str, SparkAttachOptions options_p)
-    : Catalog(db_p), db_path(connection_str), config(SparkConfig::FromURI(connection_str)),
-      options(std::move(options_p)), schemas(*this) {
+    : Catalog(db_p), config(SparkConfig::FromURI(connection_str)), options(std::move(options_p)), schemas(*this),
+      db_path(connection_str) {
 	spark_client = make_shared_ptr<SparkGRPCClient>(config.GetEndpoint());
 	// if not default spark catalog, set current catalog for spark gRPC client
 	if (options.catalog != SPARK_DEFAULT_CATALOG) {

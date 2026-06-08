@@ -25,6 +25,9 @@ struct SparkScanTableBindData : public ArrowScanFunctionData {
 	      spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
 		scan_table_plan = spark_client->PlanReadTable(params.table_name);
+		// TODO: this line is temporary due to projection pushdown feature is not implemented yet. I 'll remove it
+		// later.
+		projection_pushdown_enabled = false;
 	}
 
 	shared_ptr<FactoryDependency> GetFactoryDependency() {

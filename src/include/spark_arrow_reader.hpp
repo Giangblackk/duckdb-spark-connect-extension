@@ -1,9 +1,9 @@
 #pragma once
 
 #include "duckdb/common/arrow/arrow_wrapper.hpp"
-#include "duckdb/common/helper.hpp"
 #include "duckdb/common/shared_ptr.hpp"
 #include "duckdb/function/table/arrow.hpp"
+#include "spark/connect/base.pb.h"
 #include "spark_client.hpp"
 
 #include <arrow/c/bridge.h>
@@ -37,10 +37,6 @@ struct FactoryDependency final : public DependencyItem {
 	explicit FactoryDependency(shared_ptr<SparkStreamFactory> ptr) : DependencyItem(), factory(std::move(ptr)) {
 	}
 	shared_ptr<SparkStreamFactory> factory;
-};
-
-struct SparkStreamState {
-	SparkStreamFactory *factory;
 };
 
 class IteratorBatchReader : public arrow::RecordBatchReader {

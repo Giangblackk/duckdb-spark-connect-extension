@@ -27,7 +27,6 @@ optional_ptr<CatalogEntry> SparkTableSet::GetEntry(ClientContext &context, const
 	}
 
 	auto &table_entry = existing_entry->Cast<SparkTableEntry>();
-	auto &table_catalog = table_entry.catalog.Cast<SparkCatalog>();
 
 	return table_entry;
 }
