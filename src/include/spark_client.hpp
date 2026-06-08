@@ -39,6 +39,7 @@ struct SparkStreamState {
 class SparkGRPCClient {
 public:
 	explicit SparkGRPCClient(const std::string &endpoint);
+	grpc::Status SetConfigs(const std::map<std::string, std::string> &configs);
 	::spark::connect::Plan PlanListCatalogs(const std::string &pattern);
 	::spark::connect::Plan PlanListDatabases(const std::string &pattern);
 	::spark::connect::Plan PlanListTables(const std::string &pattern, const std::string &db_name);

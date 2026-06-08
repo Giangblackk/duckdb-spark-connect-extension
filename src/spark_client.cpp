@@ -47,6 +47,27 @@ SparkGRPCClient::SparkGRPCClient(const std::string &uri)
 	}
 };
 
+grpc::Status SparkGRPCClient::SetConfigs(const std::map<std::string, std::string> &configs) {
+	::spark::connect::ConfigRequest request;
+	request.set_session_id(session_id);
+	::spark::connect::UserContext uc;
+	uc.set_user_name("duckdb");
+	request.mutable_user_context()->CopyFrom(uc);
+	auto set_op = request.mutable_operation()->mutable_set();
+	for (const auto &[key, value] : configs) {
+		auto new_pair = set_op->add_pairs();
+		new_pair->set_key(key);
+		new_pair->set_value(value);
+	}
+	grpc::ClientContext context;
+	::spark::connect::ConfigResponse response;
+	auto status = stub_->Config(&context, request, &response);
+	if (!status.ok()) {
+		throw ConnectionException("Failed to set config: " + status.error_message());
+	}
+	return status;
+}
+
 ::spark::connect::Plan SparkGRPCClient::PlanListCatalogs(const std::string &pattern) {
 	// setup ListCatalogs
 	::spark::connect::ListCatalogs lc;
