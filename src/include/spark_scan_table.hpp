@@ -23,11 +23,6 @@ struct SparkScanTableBindData : public ArrowScanFunctionData {
 	explicit SparkScanTableBindData(shared_ptr<SparkGRPCClient> &spark_client, ScanTableParams &params)
 	    : ArrowScanFunctionData(&SparkStreamFactory::Produce, 0, make_shared_ptr<FactoryDependency>(nullptr)),
 	      spark_client(spark_client), params(params) {
-		// build Spark gRPC Plan
-		scan_table_plan = spark_client->PlanReadTable(params.table_name);
-		// TODO: this line is temporary due to projection pushdown feature is not implemented yet. I 'll remove it
-		// later.
-		projection_pushdown_enabled = false;
 	}
 
 	shared_ptr<FactoryDependency> GetFactoryDependency() {
@@ -38,8 +33,8 @@ struct SparkScanTableBindData : public ArrowScanFunctionData {
 	SparkScanTableBindData &operator=(const SparkScanTableBindData &) = delete;
 
 	shared_ptr<SparkGRPCClient> spark_client;
-	::spark::connect::Plan scan_table_plan;
 	ScanTableParams params;
+	vector<string> names;
 };
 
 struct SparkScanTableGlobalState : public ArrowScanGlobalState {
@@ -52,6 +47,8 @@ struct SparkScanTableLocalState : public ArrowScanLocalState {
 	    : ArrowScanLocalState(std::move(current_chunk), context) {
 	}
 };
+void SparkPushdownComplexFilter(ClientContext &context, LogicalGet &get, FunctionData *bind_data_p,
+                                vector<unique_ptr<Expression>> &filters);
 
 class SparkScanTableFunction : public TableFunction {
 public:

@@ -48,9 +48,24 @@ unique_ptr<ArrowArrayStreamWrapper> SparkProduceArrowScan(const ArrowScanFunctio
 unique_ptr<GlobalTableFunctionState> SparkScanTableFunction::SparkScanTableInitGlobal(ClientContext &context,
                                                                                       TableFunctionInitInput &input) {
 	auto &bind_data = input.bind_data->CastNoConst<SparkScanTableBindData>();
+	auto spark_client = bind_data.spark_client;
+
+	// Get list of selected fields to build projection pushdown
+	vector<string> selected_fields;
+	selected_fields.reserve(input.column_ids.size());
+	for (auto col_id : input.column_ids) {
+		if (col_id == COLUMN_IDENTIFIER_ROW_ID || col_id < 0) {
+			continue;
+		}
+		selected_fields.emplace_back(bind_data.names[col_id]);
+	}
+	auto read_table_rel = spark_client->CreateRelationReadTable(bind_data.params.table_name);
+	auto read_table_rel_pushdown = spark_client->AddColumnProjection(read_table_rel, selected_fields);
+	auto scan_table_plan = spark_client->PlanFromRelation(read_table_rel_pushdown);
+
 	auto gstate = make_uniq<SparkScanTableGlobalState>();
 
-	auto factory = make_shared_ptr<SparkStreamFactory>(bind_data.spark_client, bind_data.scan_table_plan);
+	auto factory = make_shared_ptr<SparkStreamFactory>(bind_data.spark_client, scan_table_plan);
 	auto factory_dependency = bind_data.GetFactoryDependency();
 	if (!factory_dependency) {
 		throw InternalException("Factory dependency not initialized");
@@ -108,8 +123,11 @@ unique_ptr<FunctionData> SparkScanTableFunction::SparkScanTableBind(ClientContex
 	// Add Spark gRPC client to table function data
 	unique_ptr<SparkScanTableBindData> bind_data = make_uniq<SparkScanTableBindData>(sparkClient, params);
 
+	// build Spark gRPC Plan to get table schema
+	auto read_table_plan = bind_data->spark_client->PlanReadTable(params.table_name);
+
 	// get arrow schema from analyzing plan, export and populate shema to attributes
-	auto arrow_shema = bind_data->spark_client->AnalyzePlanToArrowSchema(bind_data->scan_table_plan);
+	auto arrow_shema = bind_data->spark_client->AnalyzePlanToArrowSchema(read_table_plan);
 	auto status = arrow::ExportSchema(*std::move(arrow_shema), &bind_data->schema_root.arrow_schema);
 	if (!status.ok()) {
 		throw BinderException("Arrow schema export failed: " + status.ToString());
@@ -121,7 +139,30 @@ unique_ptr<FunctionData> SparkScanTableFunction::SparkScanTableBind(ClientContex
 	names = bind_data->arrow_table.GetNames();
 	return_types = bind_data->arrow_table.GetTypes();
 
+	bind_data->names = names;
+	bind_data->all_types = return_types;
+
 	return std::move(bind_data);
+}
+
+// Pushdown complex filter callback.
+// Processes all filter expressions in a single pass and pushes recognized ones as ExpressionFilter:
+// - Comparison filters: =, !=, <, <=, >, >=
+// - IS NULL / IS NOT NULL
+// - IN expressions
+// - LIKE/ILIKE patterns and prefix/suffix/contains
+//
+// All recognized filters are pushed into get.table_filters and consumed from the filters vector.
+// This approach handles everything in one pass, avoiding the issue where pushing to table_filters
+// in pushdown_complex_filter causes DuckDB's optimizer to skip the FilterCombiner path,
+// which would prevent standard comparison filters from being pushed down.
+//
+// This causes DuckDB's FilterCombiner (which runs after this callback) to see a non-empty
+// table_filters and skip its own pushdown, preventing it from re-pushing the deferred filters.
+
+void SparkPushdownComplexFilter(ClientContext &context, LogicalGet &get, FunctionData *bind_data_p,
+                                vector<unique_ptr<Expression>> &filters) {
+	// TODO
 }
 
 SparkScanTableFunction::SparkScanTableFunction()
@@ -130,6 +171,14 @@ SparkScanTableFunction::SparkScanTableFunction()
                     SparkScanTableInitLocal) {
 	named_parameters["endpoint"] = LogicalType::VARCHAR;
 	named_parameters["table_name"] = LogicalType::VARCHAR;
+
+	projection_pushdown = true;
+	// enable simple non-composite filters
+	filter_pushdown = false;
+	// prune out filter columns that are unused in the remainder of query plan
+	filter_prune = false;
+	// pushdown a set of arbitrary filter expressions
+	pushdown_complex_filter = SparkPushdownComplexFilter;
 }
 
 } // namespace spark

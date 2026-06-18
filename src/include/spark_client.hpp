@@ -7,6 +7,8 @@
 #include "spark/connect/base.grpc.pb.h"
 #include "spark/connect/base.pb.h"
 #include "spark/connect/commands.pb.h"
+#include "spark/connect/expressions.pb.h"
+#include "spark/connect/relations.pb.h"
 #include "spark/connect/types.pb.h"
 #include "spark_utils.hpp"
 
@@ -44,7 +46,13 @@ public:
 	::spark::connect::Plan PlanListDatabases(const std::string &pattern);
 	::spark::connect::Plan PlanListTables(const std::string &pattern, const std::string &db_name);
 	::spark::connect::Plan PlanSetCurrentCatalog(const std::string &catalog_name);
+	::spark::connect::Relation CreateRelationReadTable(const std::string &table_name);
+	::spark::connect::Plan PlanFromRelation(::spark::connect::Relation &input_relation);
 	::spark::connect::Plan PlanReadTable(const std::string &table_name);
+	::spark::connect::Relation AddColumnProjection(::spark::connect::Relation &input_relation,
+	                                               const std::vector<std::string> &selected_columns);
+	::spark::connect::Relation AddFilter(::spark::connect::Relation &input_relation,
+	                                     ::spark::connect::Expression &condition_epxression);
 	::spark::connect::Plan PlanExecuteSQLQuery(const std::string &sql_string);
 	::spark::connect::Plan PlanExecuteSQLCommand(const std::string &sql_string);
 	::spark::connect::Plan PlanCreateTable(const std::string &schema_name, const std::string &table_name,

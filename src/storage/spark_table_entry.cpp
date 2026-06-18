@@ -31,15 +31,17 @@ TableFunction SparkTableEntry::GetScanFunction(ClientContext &context, unique_pt
 	params.table_name = schema.name + "." + lookup.GetEntryName();
 	unique_ptr<SparkScanTableBindData> result = make_uniq<SparkScanTableBindData>(spark_client, params);
 
+	auto read_table_plan = result->spark_client->PlanReadTable(params.table_name);
 	// get arrow schema from analyzing plan, export and populate shema to attributes
-	auto arrow_shema = result->spark_client->AnalyzePlanToArrowSchema(result->scan_table_plan);
+	auto arrow_shema = result->spark_client->AnalyzePlanToArrowSchema(read_table_plan);
 	auto status = arrow::ExportSchema(*std::move(arrow_shema), &result->schema_root.arrow_schema);
 	if (!status.ok()) {
 		throw BinderException("Arrow schema export failed: " + status.ToString());
 	}
 	ArrowTableFunction::PopulateArrowTableSchema(duckdb::DBConfig::GetConfig(context), result->arrow_table,
 	                                             result->schema_root.arrow_schema);
-
+	result->names = result->arrow_table.GetNames();
+	result->all_types = result->arrow_table.GetTypes();
 	bind_data = std::move(result);
 	auto function = SparkScanTableFunction();
 	return function;

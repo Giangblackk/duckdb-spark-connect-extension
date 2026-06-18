@@ -5,6 +5,7 @@
 #include "spark/connect/base.pb.h"
 #include "spark/connect/catalog.pb.h"
 #include "spark/connect/commands.pb.h"
+#include "spark/connect/expressions.pb.h"
 #include "spark/connect/relations.pb.h"
 #include "spark/connect/types.pb.h"
 #include "spark_utils.hpp"
@@ -169,27 +170,56 @@ grpc::Status SparkGRPCClient::SetConfigs(const std::map<std::string, std::string
 	return p;
 }
 
-::spark::connect::Plan SparkGRPCClient::PlanReadTable(const std::string &table_name) {
-	// setup Table
-	::spark::connect::Read_NamedTable nt;
-	nt.set_unparsed_identifier(table_name);
-
-	::spark::connect::Read rd;
-	rd.mutable_named_table()->CopyFrom(nt);
-
+::spark::connect::Relation SparkGRPCClient::CreateRelationReadTable(const std::string &table_name) {
 	::spark::connect::Relation rel;
-	rel.mutable_read()->CopyFrom(rd);
+	rel.mutable_read()->mutable_named_table()->set_unparsed_identifier(table_name);
+	auto rc = rel.mutable_common();
+	rc->set_plan_id(next_plan_id++);
+	rc->set_source_info("");
+	return rel;
+}
 
-	// setup RelationCommon
-	::spark::connect::RelationCommon rc;
-	rc.set_plan_id(next_plan_id++);
-	rc.set_source_info("");
-	rel.mutable_common()->CopyFrom(rc);
-
-	// setup Plan
+::spark::connect::Plan SparkGRPCClient::PlanFromRelation(::spark::connect::Relation &input_relation) {
 	::spark::connect::Plan p;
-	p.mutable_root()->CopyFrom(rel);
+	p.mutable_root()->CopyFrom(input_relation);
 	return p;
+}
+
+::spark::connect::Plan SparkGRPCClient::PlanReadTable(const std::string &table_name) {
+	auto relation = CreateRelationReadTable(table_name);
+	auto plan = PlanFromRelation(relation);
+	return plan;
+}
+
+::spark::connect::Relation SparkGRPCClient::AddColumnProjection(::spark::connect::Relation &input_relation,
+                                                                const std::vector<std::string> &selected_columns) {
+	::spark::connect::Relation rel;
+	auto projection = rel.mutable_project();
+	auto exp = projection->mutable_expressions();
+	for (const auto &column : selected_columns) {
+		auto new_element = exp->Add();
+		new_element->mutable_unresolved_attribute()->set_unparsed_identifier(column);
+	}
+	projection->mutable_input()->CopyFrom(input_relation);
+
+	auto rc = rel.mutable_common();
+	rc->set_plan_id(next_plan_id++);
+	rc->set_source_info("");
+
+	return rel;
+}
+
+::spark::connect::Relation SparkGRPCClient::AddFilter(::spark::connect::Relation &input_relation,
+                                                      ::spark::connect::Expression &condition_epxression) {
+	::spark::connect::Relation rel;
+	auto filter = rel.mutable_filter();
+	filter->mutable_condition()->CopyFrom(condition_epxression);
+
+	auto rc = rel.mutable_common();
+	rc->set_plan_id(next_plan_id++);
+	rc->set_source_info("");
+
+	return rel;
 }
 
 ::spark::connect::Plan SparkGRPCClient::PlanExecuteSQLQuery(const std::string &sql_string) {
