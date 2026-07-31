@@ -213,7 +213,25 @@ grpc::Status SparkGRPCClient::SetConfigs(const std::map<std::string, std::string
                                                       ::spark::connect::Expression &condition_epxression) {
 	::spark::connect::Relation rel;
 	auto filter = rel.mutable_filter();
+	filter->mutable_input()->CopyFrom(input_relation);
 	filter->mutable_condition()->CopyFrom(condition_epxression);
+
+	auto rc = rel.mutable_common();
+	rc->set_plan_id(next_plan_id++);
+	rc->set_source_info("");
+
+	return rel;
+}
+::spark::connect::Relation SparkGRPCClient::AddFilterFromString(::spark::connect::Relation &input_relation,
+                                                                std::string &filter_string) {
+	::spark::connect::Relation rel;
+	auto filter = rel.mutable_filter();
+	filter->mutable_input()->CopyFrom(input_relation);
+
+	::spark::connect::Expression expression;
+	auto expr_str = expression.mutable_expression_string();
+	expr_str->set_expression(filter_string);
+	filter->mutable_condition()->CopyFrom(expression);
 
 	auto rc = rel.mutable_common();
 	rc->set_plan_id(next_plan_id++);

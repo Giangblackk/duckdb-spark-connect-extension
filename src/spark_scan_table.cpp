@@ -1,9 +1,23 @@
 #include "spark_scan_table.hpp"
 
 #include "duckdb/common/arrow/arrow_wrapper.hpp"
+#include "duckdb/common/constants.hpp"
+#include "duckdb/common/exception.hpp"
 #include "duckdb/common/exception/binder_exception.hpp"
 #include "duckdb/common/helper.hpp"
+#include "duckdb/common/typedefs.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/function/function.hpp"
+#include "duckdb/optimizer/column_lifetime_analyzer.hpp"
+#include "duckdb/planner/bound_tokens.hpp"
+#include "duckdb/planner/expression.hpp"
+#include "duckdb/planner/operator/logical_get.hpp"
+#include "duckdb/planner/table_filter.hpp"
+#include "spark/connect/base.pb.h"
+#include "spark/connect/expressions.pb.h"
 #include "spark_arrow_reader.hpp"
+#include "spark_expressions.hpp"
 
 namespace duckdb {
 namespace spark {
@@ -59,9 +73,26 @@ unique_ptr<GlobalTableFunctionState> SparkScanTableFunction::SparkScanTableInitG
 		}
 		selected_fields.emplace_back(bind_data.names[col_id]);
 	}
+
 	auto read_table_rel = spark_client->CreateRelationReadTable(bind_data.params.table_name);
-	auto read_table_rel_pushdown = spark_client->AddColumnProjection(read_table_rel, selected_fields);
-	auto scan_table_plan = spark_client->PlanFromRelation(read_table_rel_pushdown);
+	auto projection_pushdown_rel = spark_client->AddColumnProjection(read_table_rel, selected_fields);
+
+	auto &filter_expressions = bind_data.filter_expressions;
+
+	::spark::connect::Plan scan_table_plan;
+	if (!filter_expressions.empty()) {
+		::spark::connect::Expression filter_expression;
+		if (filter_expressions.size() == 1) {
+			filter_expression = filter_expressions[0];
+		} else {
+			filter_expression = CombineExpressionWithAnd(filter_expressions);
+		}
+
+		auto filter_pushdown_rel = spark_client->AddFilter(projection_pushdown_rel, filter_expression);
+		scan_table_plan = spark_client->PlanFromRelation(filter_pushdown_rel);
+	} else {
+		scan_table_plan = spark_client->PlanFromRelation(projection_pushdown_rel);
+	}
 
 	auto gstate = make_uniq<SparkScanTableGlobalState>();
 
@@ -145,12 +176,19 @@ unique_ptr<FunctionData> SparkScanTableFunction::SparkScanTableBind(ClientContex
 	return std::move(bind_data);
 }
 
+static bool TryConvertEpxression(ClientContext &context, const Expression &expr, LogicalGet &get,
+                                 SparkScanTableBindData &bind_data) {
+	bind_data.filter_expressions.push_back(ConvertExpression(expr));
+	return false;
+}
+
 // Pushdown complex filter callback.
-// Processes all filter expressions in a single pass and pushes recognized ones as ExpressionFilter:
+// Processes all filter expressions in a single pass and pushes recognized ones to Spark:
 // - Comparison filters: =, !=, <, <=, >, >=
 // - IS NULL / IS NOT NULL
 // - IN expressions
 // - LIKE/ILIKE patterns and prefix/suffix/contains
+// - AND/OR conjunctions
 //
 // All recognized filters are pushed into get.table_filters and consumed from the filters vector.
 // This approach handles everything in one pass, avoiding the issue where pushing to table_filters
@@ -159,10 +197,31 @@ unique_ptr<FunctionData> SparkScanTableFunction::SparkScanTableBind(ClientContex
 //
 // This causes DuckDB's FilterCombiner (which runs after this callback) to see a non-empty
 // table_filters and skip its own pushdown, preventing it from re-pushing the deferred filters.
-
 void SparkPushdownComplexFilter(ClientContext &context, LogicalGet &get, FunctionData *bind_data_p,
                                 vector<unique_ptr<Expression>> &filters) {
-	// TODO
+	auto &bind_data = bind_data_p->Cast<SparkScanTableBindData>();
+	for (idx_t i = 0; i < filters.size(); i++) {
+		auto &filter = filters[i];
+		if (!filter) {
+			continue;
+		}
+		vector<ColumnBinding> bindings;
+		ColumnLifetimeAnalyzer::ExtractColumnBindings(*filter, bindings);
+
+		if (bindings.empty()) {
+			// no columns referenced at all (pure constant expression)
+			continue;
+		} else {
+			if (TryConvertEpxression(context, *filter, get, bind_data)) {
+				filters[i] = nullptr;
+			}
+			continue;
+		}
+	}
+	// Remove processed filters.
+	filters.erase(
+	    std::remove_if(filters.begin(), filters.end(), [](const unique_ptr<Expression> &e) { return e == nullptr; }),
+	    filters.end());
 }
 
 SparkScanTableFunction::SparkScanTableFunction()
@@ -174,9 +233,9 @@ SparkScanTableFunction::SparkScanTableFunction()
 
 	projection_pushdown = true;
 	// enable simple non-composite filters
-	filter_pushdown = false;
+	filter_pushdown = true;
 	// prune out filter columns that are unused in the remainder of query plan
-	filter_prune = false;
+	filter_prune = true;
 	// pushdown a set of arbitrary filter expressions
 	pushdown_complex_filter = SparkPushdownComplexFilter;
 }

@@ -38,7 +38,8 @@ set(EXTENSION_SOURCES
     src/storage/spark_schema_set.cpp
     src/storage/spark_table_set.cpp
     src/storage/spark_table_entry.cpp
-    src/storage/spark_insert.cpp)
+    src/storage/spark_insert.cpp
+    src/spark_expressions.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})

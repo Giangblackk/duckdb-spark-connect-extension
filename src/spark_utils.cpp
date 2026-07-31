@@ -272,6 +272,8 @@ std::shared_ptr<arrow::DataType> ConvertSparkToArrowType(const ::spark::connect:
 		return arrow::utf8();
 	case ::spark::connect::DataType::KIND_NOT_SET:
 		throw InvalidTypeException("Spark Data type are not set");
+	default:
+		return nullptr;
 	}
 }
 
