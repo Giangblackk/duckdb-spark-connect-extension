@@ -1,5 +1,6 @@
 #include "spark_expressions.hpp"
 
+#include "duckdb.h"
 #include "duckdb/common/enums/expression_type.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/hugeint.hpp"
@@ -13,11 +14,15 @@
 #include "duckdb/planner/expression/bound_between_expression.hpp"
 #include "duckdb/planner/expression/bound_columnref_expression.hpp"
 #include "duckdb/planner/expression/bound_comparison_expression.hpp"
+#include "duckdb/planner/expression/bound_conjunction_expression.hpp"
 #include "duckdb/planner/expression/bound_constant_expression.hpp"
+#include "duckdb/planner/expression/bound_operator_expression.hpp"
 #include "duckdb/planner/filter/constant_filter.hpp"
 #include "spark/connect/expressions.pb.h"
+#include "spark/connect/types.pb.h"
 #include "spark_utils.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -27,11 +32,18 @@ namespace spark {
 ::spark::connect::Expression::Literal ValueToLiteral(const Value &value) {
 	::spark::connect::Expression::Literal literal;
 
+	// Handle NULL value case first, because any data type can be NULL
+	if (value.IsNull()) {
+		auto literal_null = literal.mutable_null();
+		literal_null->mutable_null()->CopyFrom(::spark::connect::DataType::NULL_());
+		return literal;
+	}
+
 	// parsing only duckdb literal/primitive data types to Spark literal data types
 	switch (value.type().id()) {
 	case LogicalTypeId::SQLNULL: {
 		auto literal_null = literal.mutable_null();
-		literal_null->CopyFrom(::spark::connect::DataType::NULL_());
+		literal_null->mutable_null()->CopyFrom(::spark::connect::DataType::NULL_());
 		break;
 	}
 	case LogicalTypeId::BOOLEAN: {
@@ -263,7 +275,7 @@ namespace spark {
 	auto func = spark_expr.mutable_unresolved_function();
 	// handle not comparisons
 	auto expr_type = expr.GetExpressionType();
-	if (expr_type == ExpressionType::COMPARE_NOT_IN || expr_type == ExpressionType::COMPARE_NOT_DISTINCT_FROM) {
+	if (expr_type == ExpressionType::COMPARE_NOT_IN || expr_type == ExpressionType::COMPARE_DISTINCT_FROM) {
 		func->set_function_name("not");
 		auto sub_expr = func->add_arguments();
 		auto sub_func = sub_expr->mutable_unresolved_function();
@@ -271,7 +283,7 @@ namespace spark {
 		case ExpressionType::COMPARE_NOT_IN:
 			sub_func->set_function_name("in");
 			break;
-		case ExpressionType::COMPARE_NOT_DISTINCT_FROM:
+		case ExpressionType::COMPARE_DISTINCT_FROM:
 			sub_func->set_function_name("<=>");
 			break;
 		default:
@@ -284,26 +296,8 @@ namespace spark {
 	}
 	// handle between comparison
 	if (expr_type == ExpressionType::COMPARE_BETWEEN) {
-		// X between A and B equivalent to X >= A and X <= B
 		auto &between_expr = expr.Cast<BoundBetweenExpression>();
-		auto &upper_expr = *between_expr.upper;
-		auto &lower_expr = *between_expr.lower;
-		auto &input_expr = *between_expr.input;
-		func->set_function_name("and");
-		// X >= A part
-		auto gte_expr = func->add_arguments();
-		auto gte_expr_func = gte_expr->mutable_unresolved_function();
-		gte_expr_func->set_function_name(">=");
-		gte_expr_func->add_arguments()->CopyFrom(ConvertExpression(input_expr));
-		gte_expr_func->add_arguments()->CopyFrom(ConvertExpression(lower_expr));
-
-		// X <= B part
-		auto lte_expr = func->add_arguments();
-		auto lte_expr_func = lte_expr->mutable_unresolved_function();
-		lte_expr_func->set_function_name("<=");
-		gte_expr_func->add_arguments()->CopyFrom(ConvertExpression(input_expr));
-		lte_expr_func->add_arguments()->CopyFrom(ConvertExpression(upper_expr));
-		return spark_expr;
+		return ConvertBetween(between_expr);
 	}
 
 	string function_name;
@@ -330,7 +324,7 @@ namespace spark {
 	case ExpressionType::COMPARE_IN:
 		function_name = "in";
 		break;
-	case ExpressionType::COMPARE_DISTINCT_FROM:
+	case ExpressionType::COMPARE_NOT_DISTINCT_FROM:
 		function_name = "<=>";
 		break;
 	default:
@@ -343,6 +337,81 @@ namespace spark {
 	func->add_arguments()->CopyFrom(ConvertExpression(*expr.left));
 	func->add_arguments()->CopyFrom(ConvertExpression(*expr.right));
 
+	return spark_expr;
+}
+
+::spark::connect::Expression ConvertBetween(const BoundBetweenExpression &expr) {
+	// X between A and B equivalent to X >= A and X <= B
+	auto &upper_expr = *expr.upper;
+	auto &lower_expr = *expr.lower;
+	auto &input_expr = *expr.input;
+	::spark::connect::Expression spark_expr;
+	auto func = spark_expr.mutable_unresolved_function();
+	func->set_function_name("and");
+	// X >= A part
+	auto gte_expr = func->add_arguments();
+	auto gte_expr_func = gte_expr->mutable_unresolved_function();
+	gte_expr_func->set_function_name(">=");
+	gte_expr_func->add_arguments()->CopyFrom(ConvertExpression(input_expr));
+	gte_expr_func->add_arguments()->CopyFrom(ConvertExpression(lower_expr));
+
+	// X <= B part
+	auto lte_expr = func->add_arguments();
+	auto lte_expr_func = lte_expr->mutable_unresolved_function();
+	lte_expr_func->set_function_name("<=");
+	lte_expr_func->add_arguments()->CopyFrom(ConvertExpression(input_expr));
+	lte_expr_func->add_arguments()->CopyFrom(ConvertExpression(upper_expr));
+	return spark_expr;
+}
+
+::spark::connect::Expression ConvertOperator(const BoundOperatorExpression &expr) {
+	::spark::connect::Expression spark_expr;
+	auto func = spark_expr.mutable_unresolved_function();
+	auto op_type = expr.type;
+	switch (op_type) {
+	case ExpressionType::OPERATOR_NOT: {
+		func->set_function_name("not");
+		break;
+	}
+	case duckdb::ExpressionType::COMPARE_IN: {
+		func->set_function_name("in");
+		break;
+	}
+	default:
+		throw NotImplementedException("Unsupported operation type: %s in BOUND_OPERATOR",
+		                              ExpressionTypeToString(op_type));
+		break;
+	}
+	for (idx_t i = 0; i < expr.children.size(); i++) {
+		auto &child_expr = *expr.children[i];
+		func->add_arguments()->CopyFrom(ConvertExpression(child_expr));
+	}
+	return spark_expr;
+}
+
+::spark::connect::Expression ConvertConjunction(const BoundConjunctionExpression &expr) {
+	::spark::connect::Expression spark_expr;
+	auto func = spark_expr.mutable_unresolved_function();
+	auto conj_type = expr.type;
+	switch (conj_type) {
+	case ExpressionType::CONJUNCTION_AND:
+		func->set_function_name("and");
+		break;
+	case ExpressionType::CONJUNCTION_OR:
+		func->set_function_name("and");
+		break;
+	case ExpressionType::COMPARE_IN:
+		func->set_function_name("in");
+		break;
+	default:
+		throw NotImplementedException("Unsupported operation type: %s in BOUND_CONJUNCTION",
+		                              ExpressionTypeToString(conj_type));
+		break;
+	}
+	for (idx_t i = 0; i < expr.children.size(); i++) {
+		auto &child_expr = *expr.children[i];
+		func->add_arguments()->CopyFrom(ConvertExpression(child_expr));
+	}
 	return spark_expr;
 }
 
@@ -370,6 +439,19 @@ namespace spark {
 		spark_expr.mutable_unresolved_attribute()->set_unparsed_identifier(col_expr.GetName());
 		return spark_expr;
 	}
+	case ExpressionClass::BOUND_BETWEEN: {
+		auto &between_expr = expression.Cast<BoundBetweenExpression>();
+		return ConvertBetween(between_expr);
+	}
+	case ExpressionClass::BOUND_OPERATOR: {
+		auto &op_expr = expression.Cast<BoundOperatorExpression>();
+		return ConvertOperator(op_expr);
+	}
+	case ExpressionClass::BOUND_CONJUNCTION: {
+		auto &conj_expr = expression.Cast<BoundConjunctionExpression>();
+		return ConvertConjunction(conj_expr);
+	}
+
 	case ExpressionClass::AGGREGATE:
 	case ExpressionClass::CASE:
 	case ExpressionClass::CAST:
@@ -393,22 +475,19 @@ namespace spark {
 	case ExpressionClass::BOUND_AGGREGATE:
 	case ExpressionClass::BOUND_CASE:
 	case ExpressionClass::BOUND_CAST:
-	case ExpressionClass::BOUND_CONJUNCTION:
 	case ExpressionClass::BOUND_DEFAULT:
 	case ExpressionClass::BOUND_FUNCTION:
-	case ExpressionClass::BOUND_OPERATOR:
 	case ExpressionClass::BOUND_PARAMETER:
 	case ExpressionClass::BOUND_REF:
 	case ExpressionClass::BOUND_SUBQUERY:
 	case ExpressionClass::BOUND_WINDOW:
-	case ExpressionClass::BOUND_BETWEEN:
 	case ExpressionClass::BOUND_UNNEST:
 	case ExpressionClass::BOUND_LAMBDA:
 	case ExpressionClass::BOUND_LAMBDA_REF:
 	case ExpressionClass::BOUND_EXPRESSION:
 	case ExpressionClass::BOUND_EXPANDED:
 	default: {
-		throw InvalidInputException("Unsupported Expression class");
+		throw InvalidInputException("Unsupported Expression class: %s", ExpressionClassToString(expression_class));
 		break;
 	}
 	}

@@ -179,7 +179,7 @@ unique_ptr<FunctionData> SparkScanTableFunction::SparkScanTableBind(ClientContex
 static bool TryConvertEpxression(ClientContext &context, const Expression &expr, LogicalGet &get,
                                  SparkScanTableBindData &bind_data) {
 	bind_data.filter_expressions.push_back(ConvertExpression(expr));
-	return false;
+	return true;
 }
 
 // Pushdown complex filter callback.
