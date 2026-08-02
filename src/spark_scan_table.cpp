@@ -16,6 +16,7 @@
 #include "duckdb/planner/table_filter.hpp"
 #include "spark/connect/base.pb.h"
 #include "spark/connect/expressions.pb.h"
+#include "spark/connect/relations.pb.h"
 #include "spark_arrow_reader.hpp"
 #include "spark_expressions.hpp"
 
@@ -75,24 +76,26 @@ unique_ptr<GlobalTableFunctionState> SparkScanTableFunction::SparkScanTableInitG
 	}
 
 	auto read_table_rel = spark_client->CreateRelationReadTable(bind_data.params.table_name);
-	auto projection_pushdown_rel = spark_client->AddColumnProjection(read_table_rel, selected_fields);
+
+	::spark::connect::Relation projection_pushdown_rel;
 
 	auto &filter_expressions = bind_data.filter_expressions;
-
-	::spark::connect::Plan scan_table_plan;
+	// if there are filters, add filters then projection
 	if (!filter_expressions.empty()) {
-		::spark::connect::Expression filter_expression;
+		::spark::connect::Expression total_filter_expression;
 		if (filter_expressions.size() == 1) {
-			filter_expression = filter_expressions[0];
+			total_filter_expression = filter_expressions[0];
 		} else {
-			filter_expression = CombineExpressionWithAnd(filter_expressions);
+			total_filter_expression = CombineExpressionWithAnd(filter_expressions);
 		}
 
-		auto filter_pushdown_rel = spark_client->AddFilter(projection_pushdown_rel, filter_expression);
-		scan_table_plan = spark_client->PlanFromRelation(filter_pushdown_rel);
+		auto filter_pushdown_rel = spark_client->AddFilter(read_table_rel, total_filter_expression);
+		projection_pushdown_rel = spark_client->AddColumnProjection(filter_pushdown_rel, selected_fields);
 	} else {
-		scan_table_plan = spark_client->PlanFromRelation(projection_pushdown_rel);
+		// otherwise, only add projection
+		projection_pushdown_rel = spark_client->AddColumnProjection(read_table_rel, selected_fields);
 	}
+	auto scan_table_plan = spark_client->PlanFromRelation(projection_pushdown_rel);
 
 	auto gstate = make_uniq<SparkScanTableGlobalState>();
 
