@@ -17,6 +17,7 @@
 #include "duckdb/planner/expression/bound_conjunction_expression.hpp"
 #include "duckdb/planner/expression/bound_constant_expression.hpp"
 #include "duckdb/planner/expression/bound_operator_expression.hpp"
+#include "duckdb/planner/expression/bound_function_expression.hpp"
 #include "duckdb/planner/filter/constant_filter.hpp"
 #include "spark/connect/expressions.pb.h"
 #include "spark/connect/types.pb.h"
@@ -415,6 +416,18 @@ namespace spark {
 	return spark_expr;
 }
 
+::spark::connect::Expression ConvertFunction(const BoundFunctionExpression &expr) {
+	// TODO: verify that function is available in Spark Catalog and the function signature is correct
+	::spark::connect::Expression spark_expr;
+	auto func = spark_expr.mutable_unresolved_function();
+	func->set_function_name(expr.function.name);
+	for (idx_t i = 0; i < expr.children.size(); i++) {
+		auto &child_expr = *expr.children[i];
+		func->add_arguments()->CopyFrom(ConvertExpression(child_expr));
+	}
+	return spark_expr;
+}
+
 ::spark::connect::Expression ConvertExpression(const Expression &expression) {
 	auto expression_class = expression.GetExpressionClass();
 	switch (expression_class) {
@@ -451,6 +464,10 @@ namespace spark {
 		auto &conj_expr = expression.Cast<BoundConjunctionExpression>();
 		return ConvertConjunction(conj_expr);
 	}
+	case ExpressionClass::BOUND_FUNCTION: {
+		auto &func_expr = expression.Cast<BoundFunctionExpression>();
+		return ConvertFunction(func_expr);
+	}
 
 	case ExpressionClass::AGGREGATE:
 	case ExpressionClass::CASE:
@@ -476,7 +493,6 @@ namespace spark {
 	case ExpressionClass::BOUND_CASE:
 	case ExpressionClass::BOUND_CAST:
 	case ExpressionClass::BOUND_DEFAULT:
-	case ExpressionClass::BOUND_FUNCTION:
 	case ExpressionClass::BOUND_PARAMETER:
 	case ExpressionClass::BOUND_REF:
 	case ExpressionClass::BOUND_SUBQUERY:
