@@ -9,17 +9,22 @@
 #include "duckdb/parser/parsed_data/attach_info.hpp"
 #include "duckdb/storage/storage_extension.hpp"
 #include "duckdb/transaction/transaction_manager.hpp"
+#include "spark_options.hpp"
 #include "storage/spark_catalog.hpp"
 #include "storage/spark_transaction.hpp"
 
 namespace duckdb {
 namespace spark {
 
-static unique_ptr<Catalog> SparkAttach(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
-                                       AttachedDatabase &db, const string &name, AttachInfo &info,
-                                       AttachOptions &attach_options) {
-	SparkOptions options;
+static unique_ptr<Catalog> SparkCatalogAttach(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
+                                              AttachedDatabase &db, const string &name, AttachInfo &info,
+                                              AttachOptions &attach_options) {
+	SparkAttachOptions options;
 	options.access_mode = attach_options.access_mode;
+	if (info.options.count("catalog") > 0) {
+		options.catalog = info.options.at("catalog").ToString();
+	}
+
 	return make_uniq<SparkCatalog>(db, info.path, options);
 }
 
@@ -30,7 +35,7 @@ static unique_ptr<TransactionManager> SparkCreateTransactionManager(optional_ptr
 }
 
 SparkStorageExtension::SparkStorageExtension() {
-	attach = SparkAttach;
+	attach = SparkCatalogAttach;
 	create_transaction_manager = SparkCreateTransactionManager;
 }
 } // namespace spark

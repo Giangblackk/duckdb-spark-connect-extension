@@ -22,17 +22,24 @@ include_directories(src/include/storage)
 
 set(EXTENSION_SOURCES
     src/spark_extension.cpp
-    src/grpc_client.cpp
     src/spark_client.cpp
-    src/spark_attach.cpp
     src/spark_storage.cpp
     src/spark_utils.cpp
     src/spark_list_catalogs.cpp
     src/spark_list_databases.cpp
     src/spark_list_tables.cpp
     src/spark_set_current_catalog.cpp
+    src/spark_scan_table.cpp
+    src/spark_arrow_reader.cpp
     src/storage/spark_catalog.cpp
-    src/storage/spark_transaction.cpp)
+    src/storage/spark_transaction.cpp
+    src/storage/spark_catalog_set.cpp
+    src/storage/spark_schema_entry.cpp
+    src/storage/spark_schema_set.cpp
+    src/storage/spark_table_set.cpp
+    src/storage/spark_table_entry.cpp
+    src/storage/spark_insert.cpp
+    src/spark_expressions.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})

@@ -3,7 +3,6 @@ find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 
 set(PROTO_FILES
-    myproto/sample.proto
     spark/connect/base.proto
     spark/connect/catalog.proto
     spark/connect/commands.proto

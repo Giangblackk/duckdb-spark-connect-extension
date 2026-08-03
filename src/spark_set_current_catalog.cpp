@@ -28,12 +28,12 @@ struct SetCurrentCatalogParams {
 };
 
 struct SetCurrentCatalogBindData : public TableFunctionData {
-	explicit SetCurrentCatalogBindData(std::shared_ptr<SparkGRPCClient> &spark_client, SetCurrentCatalogParams &params)
+	explicit SetCurrentCatalogBindData(shared_ptr<SparkGRPCClient> &spark_client, SetCurrentCatalogParams &params)
 	    : spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
 		set_current_catalog_plan = spark_client->PlanSetCurrentCatalog(params.catalog_name);
 	}
-	std::shared_ptr<SparkGRPCClient> spark_client;
+	shared_ptr<SparkGRPCClient> spark_client;
 	::spark::connect::Plan set_current_catalog_plan;
 	SetCurrentCatalogParams params;
 };
@@ -90,7 +90,7 @@ static unique_ptr<FunctionData> SparkSetCurrentCatalogBind(ClientContext &contex
 	unique_ptr<SetCurrentCatalogBindData> bind_data = make_uniq<SetCurrentCatalogBindData>(sparkClient, params);
 
 	// Initialize the names and return types from analyze plan
-	auto columns = bind_data->spark_client->AnalyzePlanSchema(bind_data->set_current_catalog_plan);
+	auto columns = bind_data->spark_client->AnalyzePlanToColumnInfo(bind_data->set_current_catalog_plan);
 	for (const auto &column : columns) {
 		names.emplace_back(column.name);
 		return_types.emplace_back(column.type);

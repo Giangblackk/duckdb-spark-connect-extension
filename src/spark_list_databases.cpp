@@ -27,12 +27,12 @@ struct ListDatabasesParams {
 };
 
 struct ListDatabasesBindData : public TableFunctionData {
-	explicit ListDatabasesBindData(std::shared_ptr<SparkGRPCClient> &spark_client, ListDatabasesParams &params)
+	explicit ListDatabasesBindData(shared_ptr<SparkGRPCClient> &spark_client, ListDatabasesParams &params)
 	    : spark_client(spark_client), params(params) {
 		// build Spark gRPC Plan
 		list_databases_plan = spark_client->PlanListDatabases(params.pattern);
 	}
-	std::shared_ptr<SparkGRPCClient> spark_client;
+	shared_ptr<SparkGRPCClient> spark_client;
 	::spark::connect::Plan list_databases_plan;
 	ListDatabasesParams params;
 };
@@ -89,7 +89,7 @@ static unique_ptr<FunctionData> SparkListDatabasesBind(ClientContext &context, T
 	unique_ptr<ListDatabasesBindData> bind_data = make_uniq<ListDatabasesBindData>(sparkClient, params);
 
 	// Initialize the names and return types from analyze plan
-	auto columns = bind_data->spark_client->AnalyzePlanSchema(bind_data->list_databases_plan);
+	auto columns = bind_data->spark_client->AnalyzePlanToColumnInfo(bind_data->list_databases_plan);
 	for (const auto &column : columns) {
 		names.emplace_back(column.name);
 		return_types.emplace_back(column.type);

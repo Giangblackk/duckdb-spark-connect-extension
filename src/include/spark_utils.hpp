@@ -1,19 +1,27 @@
 #pragma once
 
+#include "duckdb/common/typedefs.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/vector.hpp"
 #include "duckdb/function/table/arrow/arrow_duck_schema.hpp"
+#include "duckdb/parser/parsed_data/drop_info.hpp"
 #include "spark/connect/types.pb.h"
 
 #include <arrow/record_batch.h>
+#include <arrow/type.h>
+#include <memory>
 #include <string>
 
 namespace duckdb {
 namespace spark {
 struct SparkConfig {
 public:
-	SparkConfig() = default;
-	static SparkConfig FromDSN(const std::string &connection_string);
+	SparkConfig(const std::string &host, int port);
+	static SparkConfig FromURI(const std::string &connection_string);
+	std::string GetEndpoint();
+	std::string host;
+	int port;
 };
 
 struct ColumnInfo {
@@ -45,5 +53,19 @@ void WriteRecordBatchToDataChunk(ClientContext &context, const std::shared_ptr<a
                                  DataChunk &output);
 
 LogicalType ConvertSparkToDuckDBType(const ::spark::connect::DataType &dtype);
+
+::spark::connect::DataType ConvertDuckDBToSparkType(const vector<LogicalType> &types, const vector<string> &names,
+                                                    const vector<idx_t> &not_nulls = {});
+
+std::shared_ptr<arrow::DataType> ConvertSparkToArrowType(const ::spark::connect::DataType &dtype);
+
+::spark::connect::DataType SetSparkType(const LogicalType &type);
+
+std::string CreateSchemaInfoToSQL(const CreateSchemaInfo &info);
+
+std::string DropSchemaInfoToSQL(const DropInfo &info);
+
+std::string DropTableInfoToSQL(const DropInfo &info);
+
 } // namespace spark
 } // namespace duckdb
