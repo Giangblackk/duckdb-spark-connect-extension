@@ -20,6 +20,8 @@
 #include "spark_arrow_reader.hpp"
 #include "spark_expressions.hpp"
 
+#include <utility>
+
 namespace duckdb {
 namespace spark {
 
@@ -84,7 +86,7 @@ unique_ptr<GlobalTableFunctionState> SparkScanTableFunction::SparkScanTableInitG
 	if (!filter_expressions.empty()) {
 		::spark::connect::Expression total_filter_expression;
 		if (filter_expressions.size() == 1) {
-			total_filter_expression = filter_expressions[0];
+			total_filter_expression = *filter_expressions[0];
 		} else {
 			total_filter_expression = CombineExpressionWithAnd(filter_expressions);
 		}
@@ -181,8 +183,15 @@ unique_ptr<FunctionData> SparkScanTableFunction::SparkScanTableBind(ClientContex
 
 static bool TryConvertEpxression(ClientContext &context, const Expression &expr, LogicalGet &get,
                                  SparkScanTableBindData &bind_data) {
-	bind_data.filter_expressions.push_back(ConvertExpression(expr));
-	return true;
+	auto converted_expr = ConvertExpression(expr);
+	if (!converted_expr) {
+		// failed to convert expression
+		return false;
+	} else {
+		// successfully convert expression, add to filter expressions
+		bind_data.filter_expressions.push_back(std::move(converted_expr));
+		return true;
+	}
 }
 
 // Pushdown complex filter callback.

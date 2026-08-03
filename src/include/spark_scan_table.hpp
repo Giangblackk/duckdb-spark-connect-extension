@@ -35,7 +35,7 @@ struct SparkScanTableBindData : public ArrowScanFunctionData {
 	shared_ptr<SparkGRPCClient> spark_client;
 	ScanTableParams params;
 	vector<string> names;
-	vector<::spark::connect::Expression> filter_expressions;
+	vector<unique_ptr<::spark::connect::Expression>> filter_expressions;
 };
 
 struct SparkScanTableGlobalState : public ArrowScanGlobalState {
